@@ -18,14 +18,8 @@
  * GNU General Public License for more details.
  */
 
-#include "opentx.h"
 #include <io/frsky_firmware_update.h>
-
-#if defined(LIBOPENUI)
-// #include "shutdown_animation.h"
-// #include "radio_calibration.h"
-#include "view_main.h"
-#endif
+#include "opentx.h"
 
 #if defined(PCBSKY9X)
 #include "audio_driver.h"
@@ -125,11 +119,7 @@ void per10ms()
 #if defined(GUI)
   if (lightOffCounter) lightOffCounter--;
   if (flashCounter) flashCounter--;
-#if defined(LIBOPENUI)
-  #warning "TODO remove noHighlightCounter on LIBOPENUI"
-#else
   if (noHighlightCounter) noHighlightCounter--;
-#endif
 #endif
 
   if (trimsCheckTimer) trimsCheckTimer--;
@@ -336,8 +326,8 @@ void generalDefault()
 #endif
 
 #if defined(COLORLCD)
-  strcpy(g_eeGeneral.themeName, static_cast<ThemeBase *>(theme)->getName());
-  static_cast<ThemeBase *>(theme)->init();
+  strcpy(g_eeGeneral.themeName, theme->getName());
+  theme->init();
 #endif
 
 #if defined(PXX2)
@@ -350,7 +340,7 @@ void generalDefault()
 uint16_t evalChkSum()
 {
   uint16_t sum = 0;
-  const int16_t * calibValues = (const int16_t *) &g_eeGeneral.calib[0];
+  const int16_t *calibValues = (const int16_t *) &g_eeGeneral.calib[0];
   for (int i=0; i<12; i++)
     sum += calibValues[i];
   return sum;
@@ -374,12 +364,12 @@ void defaultInputs()
     expo->weight = 100;
     expo->mode = 3; // TODO constant
 #if defined(TRANSLATIONS_CZ)
-    for (int c = 0; c < 4; c++) {
-      g_model.inputNames[i][c] = STR_INPUTNAMES[1+4*(stick_index-1)+c];
+    for (int c=0; c<4; c++) {
+      g_model.inputNames[i][c] = char2zchar(STR_INPUTNAMES[1+4*(stick_index-1)+c]);
     }
 #else
-    for (int c = 0; c < 3; c++) {
-      g_model.inputNames[i][c] = STR_VSRCRAW[2 + 4 * stick_index + c];
+    for (int c=0; c<3; c++) {
+      g_model.inputNames[i][c] = char2zchar(STR_VSRCRAW[2 + 4 * stick_index + c]);
     }
 #if LEN_INPUT_NAME > 3
     g_model.inputNames[i][3] = '\0';
@@ -443,8 +433,9 @@ void checkModelIdUnique(uint8_t index, uint8_t module)
     strAppend(name, ")");
   }
 
-  if (reusableBuffer.moduleSetup.msg[0]) {
-    POPUP_WARNING(STR_MODELIDUSED, reusableBuffer.moduleSetup.msg);
+  if (reusableBuffer.moduleSetup.msg[0] != '\0') {
+    POPUP_WARNING(STR_MODELIDUSED);
+    SET_WARNING_INFO(reusableBuffer.moduleSetup.msg, sizeof(reusableBuffer.moduleSetup.msg), 0);
   }
 }
 
@@ -514,17 +505,21 @@ void modelDefault(uint8_t id)
   }
 #endif
 
-  strAppendUnsigned(strAppend(g_model.header.name, STR_MODEL), id + 1, 2);
+#if !defined(EEPROM)
+  strcpy(g_model.header.name, "\015\361\374\373\364");
+  g_model.header.name[5] = '\033' + id/10;
+  g_model.header.name[6] = '\033' + id%10;
+#endif
 
-#if defined(COLORLCD)
+#if defined(PCBHORUS)
   extern const LayoutFactory * defaultLayout;
   delete customScreens[0];
   customScreens[0] = defaultLayout->create(&g_model.screenData[0].layoutData);
   strcpy(g_model.screenData[0].layoutName, "Layout2P1");
-//  extern const WidgetFactory * defaultWidget;
-//  customScreens[0]->createWidget(0, defaultWidget);
+  extern const WidgetFactory * defaultWidget;
+  customScreens[0]->createWidget(0, defaultWidget);
   // enable switch warnings
-  for (int i = 0; i < NUM_SWITCHES; i++) {
+  for (int i=0; i<NUM_SWITCHES; i++) {
     g_model.switchWarningState |= (1 << (3*i));
   }
 #endif
@@ -700,18 +695,26 @@ void checkBacklight()
       }
     }
 
-    bool backlightOn = (g_eeGeneral.backlightMode == e_backlight_mode_on || (g_eeGeneral.backlightMode != e_backlight_mode_off && lightOffCounter));
-
-    if (flashCounter) {
-      backlightOn = !backlightOn;
-    }
-
-    if (backlightOn) {
-      currentBacklightBright = requiredBacklightBright;
+    if (requiredBacklightBright == BACKLIGHT_FORCED_ON) {
+      currentBacklightBright = g_eeGeneral.backlightBright;
       BACKLIGHT_ENABLE();
     }
     else {
-      BACKLIGHT_DISABLE();
+      bool backlightOn = ((g_eeGeneral.backlightMode == e_backlight_mode_on) ||
+                          (g_eeGeneral.backlightMode != e_backlight_mode_off && lightOffCounter) ||
+                          (g_eeGeneral.backlightMode == e_backlight_mode_off && isFunctionActive(FUNCTION_BACKLIGHT)));
+
+      if (flashCounter) {
+        backlightOn = !backlightOn;
+      }
+
+      if (backlightOn) {
+        currentBacklightBright = requiredBacklightBright;
+        BACKLIGHT_ENABLE();
+      }
+      else {
+        BACKLIGHT_DISABLE();
+      }
     }
   }
 }
@@ -763,8 +766,7 @@ void doSplash()
 
       getADC();
 
-      if (getEvent() || inputsMoved())
-        return;
+      if (keyDown() || inputsMoved()) return;
 
 #if defined(PWR_BUTTON_PRESS)
       uint32_t pwr_check = pwrCheck();
@@ -865,7 +867,7 @@ static void checkRTCBattery()
 }
 #endif
 
-#if defined(PCBFRSKY) || defined(PCBFLYSKY)
+#if defined(PCBTARANIS) || defined(PCBHORUS)
 void checkFailsafe()
 {
   for (int i=0; i<NUM_MODULES; i++) {
@@ -924,13 +926,9 @@ void checkAll()
     checkRTCBattery();
 #endif
 
-#if defined(COLORLCD)
-#warning "Model notes missing"
-#else
   if (g_model.displayChecklist && modelHasNotes()) {
     readModelNotes();
   }
-#endif
 
 #if defined(MULTIMODULE)
   checkMultiLowPower();
@@ -986,19 +984,6 @@ bool isThrottleWarningAlertNeeded()
   return v > THRCHK_DEADBAND - 1024;
 }
 
-#if defined(COLORLCD)
-void checkThrottleStick()
-{
-  if (isThrottleWarningAlertNeeded()) {
-    AUDIO_ERROR_MESSAGE(AU_THROTTLE_ALERT);
-    auto dialog = new FullScreenDialog(WARNING_TYPE_ALERT, TR_THROTTLE_UPPERCASE, STR_THROTTLE_NOT_IDLE, STR_PRESS_ANY_KEY_TO_SKIP);
-    dialog->setCloseCondition([]() {
-        return !isThrottleWarningAlertNeeded();
-    });
-    dialog->runForever();
-  }
-}
-#else
 void checkThrottleStick()
 {
   if (!isThrottleWarningAlertNeeded()) {
@@ -1007,7 +992,7 @@ void checkThrottleStick()
 
   // first - display warning; also deletes inputs if any have been before
   LED_ERROR_BEGIN();
-  RAISE_ALERT(TR_THROTTLE_UPPERCASE, STR_THROTTLE_NOT_IDLE, STR_PRESS_ANY_KEY_TO_SKIP, AU_THROTTLE_ALERT);
+  RAISE_ALERT(STR_THROTTLEWARN, STR_THROTTLENOTIDLE, STR_PRESSANYKEYTOSKIP, AU_THROTTLE_ALERT);
 
 #if defined(PWR_BUTTON_PRESS)
   bool refresh = false;
@@ -1029,7 +1014,7 @@ void checkThrottleStick()
       refresh = true;
     }
     else if (power == e_power_on && refresh) {
-      RAISE_ALERT(TR_THROTTLE_UPPERCASE, STR_THROTTLE_NOT_IDLE, STR_PRESS_ANY_KEY_TO_SKIP, AU_NONE);
+      RAISE_ALERT(STR_THROTTLEWARN, STR_THROTTLENOTIDLE, STR_PRESSANYKEYTOSKIP, AU_NONE);
       refresh = false;
     }
 #else
@@ -1047,7 +1032,6 @@ void checkThrottleStick()
 
   LED_ERROR_END();
 }
-#endif
 
 void checkAlarm() // added by Gohst
 {
@@ -1075,7 +1059,7 @@ void alert(const char * title, const char * msg , uint8_t sound)
   while (true) {
     RTOS_WAIT_MS(10);
 
-    if (getEvent())  // wait for key release
+    if (keyDown())  // wait for key release
       break;
 
     checkBacklight();
@@ -1260,16 +1244,7 @@ void getADC()
   DEBUG_TIMER_STOP(debugTimerAdcRead);
 
   for (uint8_t x=0; x<NUM_ANALOGS; x++) {
-    uint16_t v;
-
-#if defined(FLYSKY_HALL_STICKS)
-    if (x < 4)
-      v = get_hall_adc_value(x) >> (1 - ANALOG_SCALE);
-    else
-      v = getAnalogValue(x) >> (1 - ANALOG_SCALE);
-#else
-    v = getAnalogValue(x) >> (1 - ANALOG_SCALE);
-#endif
+    uint16_t v = getAnalogValue(x) >> (1 - ANALOG_SCALE);
 
     // Jitter filter:
     //    * pass trough any big change directly
@@ -1551,8 +1526,12 @@ void doMixerCalculations()
 
 #if defined(PXX) || defined(DSM2)
     static uint8_t countRangecheck = 0;
-    for (uint8_t i = 0; i < NUM_MODULES; ++i) {
-      if (isModuleBeeping(i)) {
+    for (uint8_t i=0; i<NUM_MODULES; ++i) {
+#if defined(MULTIMODULE)
+      if (moduleState[i].mode >= MODULE_MODE_BEEP_FIRST || getMultiModuleStatus(i).isBinding()) {
+#else
+      if (moduleState[i].mode >= MODULE_MODE_BEEP_FIRST) {
+#endif
         if (++countRangecheck >= 250) {
           countRangecheck = 0;
           AUDIO_PLAY(AU_SPECIAL_SOUND_CHEEP);
@@ -1563,7 +1542,6 @@ void doMixerCalculations()
 
     checkTrims();
   }
-
   DEBUG_TIMER_STOP(debugTimerMixes10ms);
 
   s_mixer_first_run_done = true;
@@ -1601,12 +1579,7 @@ void opentxStart(const uint8_t startOptions = OPENTX_START_DEFAULT_ARGS)
 
 #if defined(GUI)
   if (calibration_needed) {
-#if defined(LIBOPENUI)
-    #warning "TODO add a startCalibration function"
-    // startCalibration();
-#else
     chainMenu(menuFirstCalib);
-#endif
   }
   else if (!(startOptions & OPENTX_START_NO_CHECKS)) {
     checkAlarm();
@@ -1675,16 +1648,14 @@ void opentxResume()
 {
   TRACE("opentxResume");
 
-#if !defined(LIBOPENUI)
   menuHandlers[0] = menuMainView;
-#endif
 
   sdMount();
   storageReadAll();
 
 #if defined(COLORLCD)
-  #warning "TODO call loadTheme (not sure, it has been removed in some earlier commit)"
   loadTheme();
+  loadFontCache();
 #endif
 
   // removed to avoid the double warnings (throttle, switch, etc.)
@@ -1893,10 +1864,7 @@ void opentxInit()
 {
   TRACE("opentxInit");
 
-#if defined(LIBOPENUI)
-  new ViewMain();
-#elif defined(GUI)
-  // TODO add a function for this (duplicated)
+#if defined(GUI)
   menuHandlers[0] = menuMainView;
   #if MENUS_LOCK != 2/*no menus*/
     menuHandlers[1] = menuModelSelect;
@@ -1977,21 +1945,7 @@ void opentxInit()
     // g_model.topbarData is still zero here (because it was not yet read from SDCARD),
     // but we only remember the pointer to in in constructor.
     // The storageReadAll() needs topbar object, so it must be created here
-
-    // TODO topbar removed from new UI for now
-    // topbar = new Topbar(&g_model.topbarData);
-
-// #if __clang__
-// // clang does not like this at all, turn into a warning so that -Werror does not stop here
-// // taking address of packed member 'topbarData' of class or structure 'ModelData' may result in an unaligned pointer value [-Werror,-Waddress-of-packed-member]
-// #pragma clang diagnostic push
-// #pragma clang diagnostic warning "-Waddress-of-packed-member"
-// #endif
-//     topbar = new Topbar((Topbar::PersistentData*)(((uint8_t*)&g_model) + offsetof(ModelData,topbarData)));
-// #if __clang__
-// // Restore warnings
-// #pragma clang diagnostic pop
-// #endif
+    topbar = new Topbar(&g_model.topbarData);
 
     // lua widget state must also be prepared before the call to storageReadAll()
     LUA_INIT_THEMES_AND_WIDGETS();
@@ -2054,6 +2008,7 @@ void opentxInit()
 
 #if defined(COLORLCD)
   loadTheme();
+  loadFontCache();
 #endif
 
   if (g_eeGeneral.backlightMode != e_backlight_mode_off) {
@@ -2119,7 +2074,6 @@ int main()
   boardInit();
 
 #if defined(COLORLCD)
-  extern void loadFonts(); // TODO ?
   loadFonts();
 #endif
 
@@ -2207,15 +2161,13 @@ uint32_t pwrCheck()
       }
       if (get_tmr10ms() - pwr_press_time > PWR_PRESS_SHUTDOWN_DELAY()) {
 #if defined(SHUTDOWN_CONFIRMATION)
-        while (1)
+        while (1) {
 #else
-        while ((TELEMETRY_STREAMING() && !g_eeGeneral.disableRssiPoweroffAlarm))
+        while ((TELEMETRY_STREAMING() && !g_eeGeneral.disableRssiPoweroffAlarm)) {
 #endif
-        {
-
-#if !defined(COLORLCD)
           lcdRefreshWait();
           lcdClear();
+
           POPUP_CONFIRMATION(STR_MODEL_SHUTDOWN, nullptr);
 #if defined(SHUTDOWN_CONFIRMATION)
           if (TELEMETRY_STREAMING() && !g_eeGeneral.disableRssiPoweroffAlarm) {
@@ -2237,7 +2189,6 @@ uint32_t pwrCheck()
             pwr_check_state = PWR_CHECK_PAUSED;
             return e_power_on;
           }
-#endif
         }
         haptic.play(15, 3, PLAY_NOW);
         pwr_check_state = PWR_CHECK_OFF;
@@ -2250,10 +2201,6 @@ uint32_t pwrCheck()
     }
   }
   else {
-#if defined(COLORLCD)
-    if (pwr_press_time != 0)
-      mainWindow.invalidate();
-#endif
     pwr_check_state = PWR_CHECK_ON;
     pwr_press_time = 0;
   }

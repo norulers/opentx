@@ -44,10 +44,13 @@ Key keys[NUM_KEYS];
 
 event_t getEvent(bool trim)
 {
-  event_t event = s_evt;
-  if (trim == IS_TRIM_EVENT(event)) {
+  event_t evt = s_evt;
+  int8_t k = EVT_KEY_MASK(s_evt) - TRM_BASE;
+  bool trim_evt = (k>=0 && k<TRM_LAST-TRM_BASE+1);
+
+  if (trim == trim_evt) {
     s_evt = 0;
-    return event;
+    return evt;
   }
   else {
     return 0;

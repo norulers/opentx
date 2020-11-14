@@ -27,7 +27,7 @@ uint8_t logDelay;
 
 void writeHeader();
 
-#if defined(PCBFRSKY) || defined(PCBNV14)
+#if defined(PCBTARANIS) || defined(PCBHORUS)
   int getSwitchState(uint8_t swtch) {
     int value = getValue(MIXSRC_FIRST_SWITCH + swtch);
     return (value == 0) ? 0 : (value < 0) ? -1 : +1;
@@ -71,7 +71,9 @@ const char * logsOpen()
     if (!len && filename[i])
       len = i+1;
     if (len) {
-      if (!filename[i])
+      if (filename[i])
+        filename[i] = zchar2char(filename[i]);
+      else
         filename[i] = '_';
     }
     i--;
@@ -153,7 +155,7 @@ void writeHeader()
     }
   }
 
-#if defined(PCBFRSKY) || defined(PCBNV14)
+#if defined(PCBTARANIS) || defined(PCBHORUS)
   for (uint8_t i=1; i<NUM_STICKS+NUM_POTS+NUM_SLIDERS+1; i++) {
     const char * p = STR_VSRCRAW + i * STR_VSRCRAW[0] + 2;
     for (uint8_t j=0; j<STR_VSRCRAW[0]-1; ++j) {
@@ -271,7 +273,7 @@ void logsWrite()
         f_printf(&g_oLogFile, "%d,", calibratedAnalogs[i]);
       }
 
-#if defined(PCBFRSKY) || defined(PCBFLYSKY)
+#if defined(PCBTARANIS) || defined(PCBHORUS)
       for (uint8_t i=0; i<NUM_SWITCHES; i++) {
         if (SWITCH_EXISTS(i)) {
           f_printf(&g_oLogFile, "%d,", getSwitchState(i));

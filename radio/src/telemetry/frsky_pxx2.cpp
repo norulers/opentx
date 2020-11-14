@@ -128,13 +128,11 @@ void processRegisterFrame(uint8_t module, const uint8_t * frame)
     case 0x01:
       if (reusableBuffer.moduleSetup.pxx2.registerStep == REGISTER_RX_NAME_SELECTED) {
         // RX_NAME + PASSWORD follow, we check they are good
-        if (memcmp(&frame[4], reusableBuffer.moduleSetup.pxx2.registerRxName, PXX2_LEN_RX_NAME) == 0 &&
-            memcmp(&frame[12], g_model.modelRegistrationID, PXX2_LEN_REGISTRATION_ID) == 0) {
+        if (cmpStrWithZchar((char *)&frame[4], reusableBuffer.moduleSetup.pxx2.registerRxName, PXX2_LEN_RX_NAME) &&
+            cmpStrWithZchar((char *)&frame[12], g_model.modelRegistrationID, PXX2_LEN_REGISTRATION_ID)) {
           reusableBuffer.moduleSetup.pxx2.registerStep = REGISTER_OK;
           moduleState[module].mode = MODULE_MODE_NORMAL;
-#if !defined(COLORLCD)
           POPUP_INFORMATION(STR_REG_OK);
-#endif
         }
       }
       break;

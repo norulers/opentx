@@ -27,7 +27,7 @@ template <int N>
 class DMAFifo
 {
   public:
-    explicit DMAFifo(DMA_Stream_TypeDef * stream):
+    DMAFifo(DMA_Stream_TypeDef * stream):
       stream(stream),
       ridx(0)
     {

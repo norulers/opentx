@@ -21,11 +21,10 @@
 #include <stdint.h>
 #include "opentx.h"
 #include "diskio.h"
-#include "libopenui/src/libopenui_file.h"
 
 bool sdCardFormat()
 {
-  BYTE work[FF_MAX_SS];
+  BYTE work[_MAX_SS];
   FRESULT res = f_mkfs("", FM_FAT32, 0, work, sizeof(work));
   switch(res) {
     case FR_OK :
@@ -99,7 +98,7 @@ bool isFileAvailable(const char * path, bool exclDir)
 bool isFilePatternAvailable(const char * path, const char * file, const char * pattern = nullptr, bool exclDir = true, char * match = nullptr)
 {
   uint8_t fplen;
-  char fqfp[LEN_FILE_PATH_MAX + FF_MAX_LFN + 1] = "\0";
+  char fqfp[LEN_FILE_PATH_MAX + _MAX_LFN + 1] = "\0";
 
   fplen = strlen(path);
   if (fplen > LEN_FILE_PATH_MAX) {
@@ -109,7 +108,7 @@ bool isFilePatternAvailable(const char * path, const char * file, const char * p
 
   strcpy(fqfp, path);
   strcpy(fqfp + fplen, "/");
-  strncat(fqfp + (++fplen), file, FF_MAX_LFN);
+  strncat(fqfp + (++fplen), file, _MAX_LFN);
 
   if (pattern == nullptr) {
     // no extensions list, just check the filename as-is
@@ -174,7 +173,7 @@ uint8_t getDigitsCount(unsigned int value)
   return count;
 }
 
-unsigned int findNextFileIndex(char * filename, uint8_t size, const char * directory)
+int findNextFileIndex(char * filename, uint8_t size, const char * directory)
 {
   unsigned int index;
   uint8_t extlen;
@@ -182,7 +181,7 @@ unsigned int findNextFileIndex(char * filename, uint8_t size, const char * direc
   char extension[LEN_FILE_EXTENSION_MAX+1] = "\0";
   char * p = (char *)getFileExtension(filename, 0, 0, nullptr, &extlen);
   if (p) strncat(extension, p, sizeof(extension)-1);
-  while (true) {
+  while (1) {
     index++;
     if ((indexPos - filename) + getDigitsCount(index) + extlen > size) {
       return 0;
@@ -203,6 +202,62 @@ const char * getBasename(const char * path)
     }
   }
   return path;
+}
+
+const char * getFileExtension(const char * filename, uint8_t size, uint8_t extMaxLen, uint8_t *fnlen, uint8_t *extlen)
+{
+  int len = size;
+  if (!size) {
+    len = strlen(filename);
+  }
+  if (!extMaxLen) {
+    extMaxLen = LEN_FILE_EXTENSION_MAX;
+  }
+  if (fnlen != nullptr) {
+    *fnlen = (uint8_t)len;
+  }
+  for (int i=len-1; i >= 0 && len-i <= extMaxLen; --i) {
+    if (filename[i] == '.') {
+      if (extlen) {
+        *extlen = len-i;
+      }
+      return &filename[i];
+    }
+  }
+  if (extlen != nullptr) {
+    *extlen = 0;
+  }
+  return nullptr;
+}
+
+/**
+  Check if given extension exists in a list of extensions.
+  @param extension The extension to search for, including leading period.
+  @param pattern One or more file extensions concatenated together, including the periods.
+    The list is searched backwards and the first match, if any, is returned.
+    eg: ".gif.jpg.jpeg.png"
+  @param match Optional container to hold the matched file extension (wide enough to hold LEN_FILE_EXTENSION_MAX + 1).
+  @retval true if a extension was found in the lost, false otherwise.
+*/
+bool isExtensionMatching(const char * extension, const char * pattern, char * match)
+{
+  const char *ext;
+  uint8_t extlen, fnlen;
+  int plen;
+
+  ext = getFileExtension(pattern, 0, 0, &fnlen, &extlen);
+  plen = (int)fnlen;
+  while (plen > 0 && ext) {
+    if (!strncasecmp(extension, ext, extlen)) {
+      if (match != nullptr) strncat(&(match[0]='\0'), ext, extlen);
+      return true;
+    }
+    plen -= extlen;
+    if (plen > 0) {
+      ext = getFileExtension(pattern, plen, 0, nullptr, &extlen);
+    }
+  }
+  return false;
 }
 
 bool sdListFiles(const char * path, const char * extension, const uint8_t maxlen, const char * selection, uint8_t flags)
@@ -372,13 +427,13 @@ void sdReadTextFile(const char * filename, char lines[TEXT_VIEWER_LINES][LCD_COL
 
   result = f_open(&file, filename, FA_OPEN_EXISTING | FA_READ);
   if (result == FR_OK) {
-    for (uint32_t i = 0; i < TEXT_FILE_MAXSIZE && f_read(&file, &c, 1, &sz) == FR_OK && sz == 1 && (lines_count == 0 || current_line - menuVerticalOffset < int(TEXT_VIEWER_LINES)); i++) {
+    for (unsigned i = 0; i < TEXT_FILE_MAXSIZE && f_read(&file, &c, 1, &sz) == FR_OK && sz == 1 && (lines_count == 0 || current_line - menuVerticalOffset < TEXT_VIEWER_LINES); i++) {
       if (c == '\n') {
         ++current_line;
         line_length = 0;
         escape = 0;
       }
-      else if (c != '\r' && current_line >= menuVerticalOffset && current_line - menuVerticalOffset < int(TEXT_VIEWER_LINES) && line_length < LCD_COLS) {
+      else if (c!='\r' && current_line>=menuVerticalOffset && current_line-menuVerticalOffset<TEXT_VIEWER_LINES && line_length<LCD_COLS) {
         if (c == '\\' && escape == 0) {
           escape = 1;
           continue;
@@ -386,15 +441,15 @@ void sdReadTextFile(const char * filename, char lines[TEXT_VIEWER_LINES][LCD_COL
         else if (c != '\\' && escape > 0 && escape < sizeof(escape_chars)) {
           escape_chars[escape - 1] = c;
           if (escape == 2 && !strncmp(escape_chars, "up", 2)) {
-            c = CHAR_UP;
+            c = '\300';
           }
           else if (escape == 2 && !strncmp(escape_chars, "dn", 2)) {
-            c = CHAR_DOWN;
+            c = '\301';
           }
           else if (escape == 3) {
             int val = atoi(escape_chars);
             if (val >= 200 && val < 225) {
-              c = '\200' + val - 200;
+              c = '\200' + val-200;
             }
           }
           else {
@@ -421,6 +476,37 @@ void sdReadTextFile(const char * filename, char lines[TEXT_VIEWER_LINES][LCD_COL
   if (lines_count == 0) {
     lines_count = current_line;
   }
+}
+
+// returns true if current working dir is at the root level
+bool isCwdAtRoot()
+{
+  char path[10];
+  if (f_getcwd(path, sizeof(path)-1) == FR_OK) {
+    return (strcasecmp("/", path) == 0);
+  }
+  return false;
+}
+
+/*
+  Wrapper around the f_readdir() function which
+  also returns ".." entry for sub-dirs. (FatFS 0.12 does
+  not return ".", ".." dirs anymore)
+*/
+FRESULT sdReadDir(DIR * dir, FILINFO * fno, bool & firstTime)
+{
+  FRESULT res;
+  if (firstTime && !isCwdAtRoot()) {
+    // fake parent directory entry
+    strcpy(fno->fname, "..");
+    fno->fattrib = AM_DIR;
+    res = FR_OK;
+  }
+  else {
+    res = f_readdir(dir, fno);                   /* Read a directory item */
+  }
+  firstTime = false;
+  return res;
 }
 
 #if defined(SDCARD)

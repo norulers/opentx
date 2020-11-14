@@ -139,7 +139,7 @@ void eepromWriteBlock(uint8_t * buffer, size_t address, size_t size)
 
 pthread_t eeprom_thread_pid;
 
-void startEepromThread(const char * filename)
+void StartEepromThread(const char * filename)
 {
   eepromFile = filename;
   if (eepromFile) {
@@ -160,7 +160,7 @@ void startEepromThread(const char * filename)
   RTOS_CREATE_TASK(eeprom_thread_pid, eeprom_thread_function, "eeprom");
 }
 
-void stopEepromThread()
+void StopEepromThread()
 {
   eeprom_thread_running = false;
   sem_post(eeprom_write_sem);

@@ -1,19 +1,21 @@
 include(CMakeForceCompiler)
 include(Bitmaps)
 
-set(PCB_TYPES X9LITE X9LITES X7 XLITE XLITES X9D X9D+ X9E X10 X12S SKY9X 9XRPRO AR9X NV14)
-set(RADIO_LANGUAGES CZ DE EN ES FR IT PT SK SE PL HU NL CN)
+set(PCB_TYPES X9LITE X9LITES X7 XLITE XLITES X9D X9D+ X9E X10 X12S SKY9X 9XRPRO AR9X)
+set(GUI_LANGUAGES CZ DE EN ES FR IT PT SK SE PL HU NL)
 set(TTS_LANGUAGES CZ DE EN ES FR IT PT SK SE PL HU NL RU)
 
 set(PCB "X9D+" CACHE STRING "Radio type, one of: ${PCB_TYPES}")
 set_property(CACHE PCB PROPERTY STRINGS ${PCB_TYPES})
-set(TRANSLATIONS "EN" CACHE STRING "Radio language, one of: ${RADIO_LANGUAGES}")
-set_property(CACHE TRANSLATIONS PROPERTY STRINGS ${RADIO_LANGUAGES})
+set(TRANSLATIONS "EN" CACHE STRING "Radio language, one of: ${GUI_LANGUAGES}")
+set_property(CACHE TRANSLATIONS PROPERTY STRINGS ${GUI_LANGUAGES})
 set(SPLASH "DEFAULT" CACHE STRING "Splash (DEFAULT/OFF/FRSKY)")
 set_property(CACHE SPLASH PROPERTY STRINGS DEFAULT OFF FRSKY)
 set(PPM_UNIT "PERCENT_PREC1" CACHE STRING "PPM display unit (US/PERCENT_PREC1/PERCENT_PREC0)")
 set_property(CACHE PPM_UNIT PROPERTY STRINGS US PERCENT_PREC1 PERCENT_PREC0)
 set(DEFAULT_MODE "" CACHE STRING "Default sticks mode")
+set(FONT "STD" CACHE STRING "Choose font : STD or SQT5")
+set_property(CACHE FONT PROPERTY STRINGS SQT5)
 set(POPUP_LEVEL 2 CACHE STRING "Popup level")
 
 option(HELI "Heli menu" ON)
@@ -43,7 +45,6 @@ option(RAS "RAS (SWR) enabled" ON)
 option(TEMPLATES "Model templates menu" OFF)
 option(TRACE_SIMPGMSPACE "Turn on traces in simpgmspace.cpp" ON)
 option(TRACE_LUA_INTERNALS "Turn on traces for Lua internals" OFF)
-option(DEBUG_WINDOWS "Turn on windows traces" OFF)
 option(FRSKY_STICKS "Reverse sticks for FrSky sticks" OFF)
 option(NANO "Use nano newlib and binalloc")
 option(TEST_BUILD_WARNING "Warn this is a test build" OFF)
@@ -54,8 +55,7 @@ option(MODULE_PROTOCOL_D8 "Add support for D8 modules" ON)
 option(FRSKY_RELEASE "Used to build FrSky released firmware" OFF)
 option(TBS_RELEASE "Used to build TBS released firmware" OFF)
 option(IMRC_RELEASE "Used to build IMRC released firmware" OFF)
-option(HARDWARE_TRAINER_MULTI "Allow multi trainer" OFF)
-option(BOOTLOADER "Include Bootloader" ON)
+option(ALLOW_TRAINER_MULTI "Allow multi trainer" OFF)
 
 # since we reset all default CMAKE compiler flags for firmware builds, provide an alternate way for user to specify additional flags.
 set(FIRMWARE_C_FLAGS "" CACHE STRING "Additional flags for firmware target c compiler (note: all CMAKE_C_FLAGS[_*] are ignored for firmware/bootloader).")
@@ -71,23 +71,25 @@ set(RADIO_BIN_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 configure_file(stamp.h.in stamp.h @ONLY)
 
+add_subdirectory(translations)
+add_subdirectory(bitmaps)
+add_subdirectory(fonts)
+
 set(EEPROM_VARIANT  0)
 set(GVARS_VARIANT   1)
 set(FRSKY_VARIANT   2)
 set(3POS_VARIANT    4)
 
-set(RADIO_DEPENDENCIES radio_translations)
+set(RADIO_DEPENDENCIES firmware_translations)
 
 set(FATFS_SRC
   ${FATFS_DIR}/ff.c
-  ${FATFS_DIR}/ffunicode.c
   ${FATFS_DIR}/fattime.c
+  ${FATFS_DIR}/option/ccsbcs.c
 )
 
 if(PCB STREQUAL X12S OR PCB STREQUAL X10)
   include(targets/horus/CMakeLists.txt)
-elseif(PCB STREQUAL NV14)
-  include(targets/nv14/CMakeLists.txt)
 elseif(PCB STREQUAL X9E OR PCB STREQUAL X9D+ OR PCB STREQUAL X9D OR PCB STREQUAL X7 OR PCB STREQUAL X9LITE OR PCB STREQUAL X9LITES OR PCB STREQUAL XLITE OR PCB STREQUAL XLITES)
   include(targets/taranis/CMakeLists.txt)
 elseif(PCB STREQUAL SKY9X OR PCB STREQUAL 9XRPRO OR PCB STREQUAL AR9X)
@@ -95,10 +97,6 @@ elseif(PCB STREQUAL SKY9X OR PCB STREQUAL 9XRPRO OR PCB STREQUAL AR9X)
 else()
   message(FATAL_ERROR "Unknown PCB '${PCB}'")
 endif()
-
-add_subdirectory(translations)
-add_subdirectory(bitmaps)
-add_subdirectory(fonts)
 
 if(NOT PCB STREQUAL 9XRPRO)
   option(DBLKEYS "Double Keys" ON)
@@ -125,7 +123,7 @@ endif()
 
 include_directories(targets/${TARGET_DIR} ${THIRDPARTY_DIR})
 
-foreach(LANGUAGE ${RADIO_LANGUAGES})
+foreach(LANGUAGE ${GUI_LANGUAGES})
   if(TRANSLATIONS STREQUAL ${LANGUAGE})
     add_definitions(-DTRANSLATIONS_${LANGUAGE} -DTRANSLATIONS="${LANGUAGE}")
   endif()
@@ -133,48 +131,31 @@ endforeach()
 
 set(SRC ${SRC} debug.cpp)
 
+if(${EEPROM} STREQUAL SDCARD)
+  set(SRC ${SRC} storage/storage_common.cpp storage/sdcard_raw.cpp storage/modelslist.cpp)
+elseif(${EEPROM} STREQUAL EEPROM_RLC)
+  set(SRC ${SRC} storage/storage_common.cpp storage/eeprom_common.cpp storage/eeprom_rlc.cpp)
+  add_definitions(-DEEPROM -DEEPROM_RLC)
+else()
+  set(SRC ${SRC} storage/storage_common.cpp storage/eeprom_common.cpp storage/eeprom_raw.cpp)
+  add_definitions(-DEEPROM -DEEPROM_RAW)
+endif()
+
+include(storage/conversions/CMakeLists.txt)
+
 add_definitions(-DFLAVOUR="${FLAVOUR}")
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/bitmaps/${BITMAPS_DIR})
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/bitmaps/${GUI_DIR})
 
 include(gui/CMakeLists.txt)
-
-set(SRC ${SRC} storage/storage_common.cpp)
-if(${STORAGE} STREQUAL SDCARD)
-  set(SRC ${SRC} storage/modelslist.cpp storage/sdcard_common.cpp)
-  if(${STORAGE_FORMAT} STREQUAL BIN)
-    set(SRC ${SRC} storage/sdcard_raw.cpp)
-    add_definitions(-DSDCARD_RAW)
-  elseif(${STORAGE_FORMAT} STREQUAL YAML)
-    set(SRC ${SRC} storage/sdcard_yaml.cpp)
-    add_definitions(-DSDCARD_YAML)
-    include(storage/yaml/CMakeLists.txt)
-    #add_subdirectory(storage/yaml)
-  endif()
-elseif(${STORAGE} STREQUAL EEPROM)
-  set(SRC ${SRC} storage/eeprom_common.cpp)
-  add_definitions(-DEEPROM)
-  if(${STORAGE_FORMAT} STREQUAL RLC)
-    set(SRC ${SRC} storage/eeprom_rlc.cpp)
-    add_definitions(-DEEPROM_RLC)
-  elseif(${STORAGE_FORMAT} STREQUAL RAW)
-    set(SRC ${SRC} storage/eeprom_raw.cpp)
-    add_definitions(-DEEPROM_RAW)
-  else()
-    set(SRC ${SRC} storage/eeprom_none.cpp)
-    add_definitions(-DEEPROM_NONE)
-  endif()
-endif()
-
-include(storage/conversions/CMakeLists.txt)
 
 if(RTC_BACKUP_RAM)
   add_definitions(-DRTC_BACKUP_RAM)
   set(SRC ${SRC} storage/rlc.cpp)
   set(FIRMWARE_SRC ${FIRMWARE_SRC} storage/rtc_backup.cpp)
-  set(GTEST_SRC ${GTEST_SRC} ${RADIO_SRC_DIR}/storage/rtc_backup.cpp)
+  set(GTEST_SRC ${GTEST_SRC} ${RADIO_SRC_DIRECTORY}/storage/rtc_backup.cpp)
 endif()
 
 if(NOT LUA STREQUAL NO)
@@ -192,8 +173,12 @@ if(NOT LUA STREQUAL NO)
   set(RADIO_DEPENDENCIES ${RADIO_DEPENDENCIES} ${LUA_EXPORT})
   if(LUA STREQUAL YES)
     add_definitions(-DLUA_MODEL_SCRIPTS)
+    set(GUI_SRC ${GUI_SRC} model_custom_scripts.cpp)
   endif()
   set(SRC ${SRC} lua/interface.cpp lua/api_general.cpp lua/api_lcd.cpp lua/api_model.cpp)
+  if(PCB STREQUAL X12S OR PCB STREQUAL X10)
+    set(SRC ${SRC} lua/widgets.cpp)
+  endif()
   set(LUA_SRC lapi.c lcode.c lctype.c ldebug.c ldo.c ldump.c lfunc.c lgc.c llex.c lmem.c lobject.c lopcodes.c lparser.c
     lstate.c lstring.c ltable.c lrotable.c ltm.c lundump.c lvm.c lzio.c linit.c
     lbaselib.c lmathlib.c lbitlib.c loadlib.c lauxlib.c ltablib.c lcorolib.c liolib.c lstrlib.c
@@ -213,6 +198,7 @@ endif()
 
 if(FLIGHT_MODES)
   add_definitions(-DFLIGHT_MODES)
+  set(GUI_SRC ${GUI_SRC} model_flightmodes.cpp)
 endif()
 
 if(CURVES)
@@ -271,7 +257,7 @@ endif()
 if(SDCARD)
   add_definitions(-DSDCARD)
   include_directories(${FATFS_DIR} ${FATFS_DIR}/option)
-  set(SRC ${SRC} sdcard.cpp rtc.cpp logs.cpp thirdparty/libopenui/src/libopenui_file.cpp)
+  set(SRC ${SRC} sdcard.cpp rtc.cpp logs.cpp)
   set(FIRMWARE_SRC ${FIRMWARE_SRC} ${FATFS_SRC})
 endif()
 
@@ -319,20 +305,12 @@ if(TRACE_LUA_INTERNALS)
   add_definitions(-DTRACE_LUA_INTERNALS_ENABLED)
 endif()
 
-if(DEBUG_WINDOWS)
-  add_definitions(-DDEBUG_WINDOWS)
-endif()
-
 if(FRSKY_STICKS)
   add_definitions(-DFRSKY_STICKS)
 endif()
 
-if(FLYSKY_HALL_STICKS)
-  add_definitions(-DFLYSKY_HALL_STICKS)
-endif()
-
-if(FLYSKY_HALL_STICKS_REVERSE)
-  add_definitions(-DFLYSKY_HALL_STICKS_REVERSE)
+if(NOT FONT STREQUAL "")
+  add_definitions(-DFONT=${DEFAULT_MODE})
 endif()
 
 if(EEPROM_VARIANT_NEEDED)
@@ -380,8 +358,8 @@ if(FRSKY_RELEASE)
   set(POPUP_LEVEL 3)
 endif()
 
-if(HARDWARE_TRAINER_MULTI)
-  add_definitions(-DHARDWARE_TRAINER_MULTI)
+if(ALLOW_TRAINER_MULTI)
+  add_definitions(-DALLOW_TRAINER_MULTI)
 endif()
 
 add_definitions(-DPOPUP_LEVEL=${POPUP_LEVEL})
@@ -488,7 +466,7 @@ use_cxx11()  # ensure gnu++11 in CXX_FLAGS with CMake < 3.1
 find_program(BASH bash HINTS "c:/cygwin/bin/" "c:/msys/bin/" DOC "bash shell for firmware size report (eg. c:/cygwin/bin/bash.exe on Windows).")
 
 if(NOT MSVC)
-  set(OPT "s" CACHE STRING "Optimization mode (0/1/2/s")
+  set(OPT s)
 
   if(ARCH STREQUAL ARM)
     enable_language(ASM)
@@ -507,12 +485,12 @@ if(NOT MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS}")
 
     # these are in addition to CMAKE_CXX_FLAGS
-    set(CMAKE_EXE_LINKER_FLAGS "-lm -T${RADIO_SRC_DIR}/${LINKER_SCRIPT} -Wl,-Map=firmware.map,--cref,--no-warn-mismatch,--gc-sections")
+    set(CMAKE_EXE_LINKER_FLAGS "-lm -T${RADIO_SRC_DIRECTORY}/${LINKER_SCRIPT} -Wl,-Map=firmware.map,--cref,--no-warn-mismatch,--gc-sections")
 
     if(ACCESS_LIB)
-      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--whole-archive ${RADIO_SRC_DIR}/${THIRDPARTY_DIR}/libACCESS/libAccess.a -Wl,--no-whole-archive")
+      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--whole-archive ${RADIO_SRC_DIRECTORY}/${THIRDPARTY_DIR}/libACCESS/libAccess.a -Wl,--no-whole-archive")
     endif()
-
+    
     if(SEMIHOSTING)
       add_definitions(-DSEMIHOSTING)
       set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --specs=rdimon.specs")
@@ -530,7 +508,11 @@ if(NOT MSVC)
       set(SRC ${SRC} bin_allocator.cpp)
     endif()
 
-    if(OPENRC_BOOTLOADER)
+    if(PCB STREQUAL XLITE OR PCB STREQUAL XLITES OR PCB STREQUAL X9D OR PCB STREQUAL X9D+ OR PCB STREQUAL X9E OR PCB STREQUAL X7 OR PCB STREQUAL X9LITE OR PCB STREQUAL X9LITES OR PCB STREQUAL X10 OR PCB STREQUAL X12S)
+      add_subdirectory(targets/common/arm/stm32/bootloader)
+      include_directories(${CMAKE_CURRENT_BINARY_DIR}/targets/common/arm/stm32/bootloader)
+      set(FIRMWARE_DEPENDENCIES ${FIRMWARE_DEPENDENCIES} bootloader)
+    elseif(OPENRC_BOOTLOADER)
       # We fetch Mike's bootloader as it is not included inside OpenTX
       message(STATUS "Downloading Mike's bootloader: https://github.com/MikeBland/OpenRcBootloader/releases/download/V1.9/${OPENRC_BOOTLOADER}")
       file(DOWNLOAD https://github.com/MikeBland/OpenRcBootloader/releases/download/V1.9/${OPENRC_BOOTLOADER} ${CMAKE_CURRENT_BINARY_DIR}/bootloader.lbm STATUS status)
@@ -539,10 +521,6 @@ if(NOT MSVC)
         list(GET status 1 error_message)
         message(FATAL_ERROR "Download failed: ${error_message}")
       endif()
-    elseif(BOOTLOADER)
-      add_subdirectory(targets/common/arm/stm32/bootloader)
-      include_directories(${CMAKE_CURRENT_BINARY_DIR}/targets/common/arm/stm32/bootloader)
-      set(RADIO_DEPENDENCIES ${RADIO_DEPENDENCIES} bootloader)
     endif()
 
     add_definitions(-DRTOS_COOS)
@@ -597,7 +575,6 @@ if(NOT MSVC)
   PrintTargetReport("firmware")
 
 endif(NOT MSVC)
-
 # Include the lua subdirectory after CMAKE_C_COMPILER has been
 # set. Otherwise, the custom commands it includes will use the
 # default CMAKE_C_COMPILER instead of the one we set manually

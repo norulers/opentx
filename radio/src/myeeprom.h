@@ -22,7 +22,7 @@
 #define _MYEEPROM_H_
 
 #include "datastructs.h"
-#include "libopenui/src/bitfield.h"
+#include "bitfield.h"
 
 #define EEPROM_VER             219
 #define FIRST_CONV_EEPROM_VER  216
@@ -33,13 +33,15 @@
 #define GET_MODULE_PPM_DELAY(idx)                (g_model.moduleData[idx].ppm.delay * 50 + 300)
 #define GET_TRAINER_PPM_DELAY()                  (g_model.trainerData.delay * 50 + 300)
 
-#if defined(HARDWARE_TRAINER_EXTERNAL_MODULE)
-  #define IS_TRAINER_EXTERNAL_MODULE()           (g_model.trainerData.mode == TRAINER_MODE_MASTER_SBUS_EXTERNAL_MODULE || g_model.trainerData.mode == TRAINER_MODE_MASTER_CPPM_EXTERNAL_MODULE)
+#if defined(PCBHORUS)
+  #define IS_TRAINER_EXTERNAL_MODULE()    false
+  #define HAS_WIRELESS_TRAINER_HARDWARE() (g_eeGeneral.auxSerialMode==UART_MODE_SBUS_TRAINER)
+#elif defined(PCBTARANIS)
+  #define IS_TRAINER_EXTERNAL_MODULE()      (g_model.trainerData.mode == TRAINER_MODE_MASTER_SBUS_EXTERNAL_MODULE || g_model.trainerData.mode == TRAINER_MODE_MASTER_CPPM_EXTERNAL_MODULE)
+  #define HAS_WIRELESS_TRAINER_HARDWARE()   (g_eeGeneral.auxSerialMode == UART_MODE_SBUS_TRAINER)
 #else
-  #define IS_TRAINER_EXTERNAL_MODULE()           false
+  #define IS_TRAINER_EXTERNAL_MODULE()    false
 #endif
-
-#define IS_TRAINER_AUX_SERIAL()                  (g_eeGeneral.auxSerialMode == UART_MODE_SBUS_TRAINER)
 
 #define IS_PLAY_FUNC(func)             ((func) >= FUNC_PLAY_SOUND && func <= FUNC_PLAY_VALUE)
 
@@ -76,7 +78,7 @@
 #define MODEL_GVAR_MIN(idx)            (CFN_GVAR_CST_MIN + g_model.gvars[idx].min)
 #define MODEL_GVAR_MAX(idx)            (CFN_GVAR_CST_MAX - g_model.gvars[idx].max)
 
-#if defined(PCBFRSKY) || defined(PCBNV14)
+#if defined(PCBTARANIS) || defined(PCBHORUS)
   #define SWITCH_CONFIG(x)            (bfGet<swconfig_t>(g_eeGeneral.switchConfig, 2*(x), 2))
   #define SWITCH_EXISTS(x)            (SWITCH_CONFIG(x) != SWITCH_NONE)
   #define IS_CONFIG_3POS(x)           (SWITCH_CONFIG(x) == SWITCH_3POS)
@@ -91,7 +93,7 @@
 
 #define ALTERNATE_VIEW                0x10
 
-#if defined(COLORLCD)
+#if defined(PCBHORUS)
   #include "layout.h"
   #include "theme.h"
   #include "topbar.h"
@@ -108,6 +110,7 @@ enum CurveRefType {
   CURVE_REF_CUSTOM
 };
 
+#define MIN_EXPO_WEIGHT         -100
 #define EXPO_VALID(ed)          ((ed)->mode)
 #define EXPO_MODE_ENABLE(ed, v) (((v)<0 && ((ed)->mode&1)) || ((v)>=0 && ((ed)->mode&2)))
 
@@ -142,6 +145,7 @@ enum CurveRefType {
 
 #define GV1_SMALL       128
 #define GV1_LARGE       1024
+#define GV_RANGE_WEIGHT 500
 #define GV_RANGE_OFFSET 500
 #define DELAY_MAX       250 /* 25 seconds */
 #define SLOW_MAX        250 /* 25 seconds */

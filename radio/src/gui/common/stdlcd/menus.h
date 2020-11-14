@@ -36,7 +36,7 @@ extern uint8_t menuCalibrationState;
 extern MenuHandlerFunc menuHandlers[5];
 extern uint8_t menuVerticalPositions[4];
 extern uint8_t menuLevel;
-extern event_t menuEvent;
+extern uint8_t menuEvent;
 
 void chainMenu(MenuHandlerFunc newMenu);
 void pushMenu(MenuHandlerFunc newMenu);

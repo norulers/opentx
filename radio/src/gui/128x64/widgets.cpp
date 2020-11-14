@@ -87,9 +87,7 @@ void title(const char * s)
 
 choice_t editChoice(coord_t x, coord_t y, const char * label, const char *values, choice_t value, choice_t min, choice_t max, LcdFlags attr, event_t event, IsValueAvailable isValueAvailable)
 {
-  if (label) {
-    drawFieldLabel(x, y, label);
-  }
+  drawFieldLabel(x, y, label);
   if (values) lcdDrawTextAtIndex(x, y, values, value-min, attr);
   if (attr & (~RIGHT)) value = checkIncDec(event, value, min, max, (isModelMenuDisplayed()) ? EE_MODEL : EE_GENERAL, isValueAvailable);
   return value;
@@ -99,7 +97,7 @@ uint8_t editCheckBox(uint8_t value, coord_t x, coord_t y, const char *label, Lcd
 {
 #if defined(GRAPHICS)
   drawCheckBox(x, y, value, attr);
-  return editChoice(x, y, label, nullptr, value, 0, 1, attr, event);
+  return editChoice(x, y, label, NULL, value, 0, 1, attr, event);
 #else
   return editChoice(x, y, label, STR_OFFON, value, 0, 1, attr, event);
 #endif
@@ -139,7 +137,7 @@ void drawGVarValue(coord_t x, coord_t y, uint8_t gvar, gvar_t value, LcdFlags fl
 
 int16_t editGVarFieldValue(coord_t x, coord_t y, int16_t value, int16_t min, int16_t max, LcdFlags attr, uint8_t editflags, event_t event)
 {
-  uint16_t delta = GV_GET_GV1_VALUE(min, max);
+  uint16_t delta = GV_GET_GV1_VALUE(max);
   bool invers = (attr & INVERS);
 
   // TRACE("editGVarFieldValue(val=%d min=%d max=%d)", value, min, max);

@@ -2,6 +2,7 @@ set(GUI_SRC
   ${GUI_SRC}
   lcd.cpp
   splash.cpp
+  fonts.cpp
   popups.cpp
   widgets.cpp
   startup_shutdown.cpp

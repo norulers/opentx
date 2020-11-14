@@ -23,7 +23,6 @@
 
 #include "fifo.h"
 #include "io/frsky_pxx2.h"
-#include "popups.h"
 #include "./pxx.h"
 
 #define PXX2_TYPE_C_MODULE                  0x01
@@ -456,13 +455,13 @@ class Pxx2OtaUpdate {
     {
     }
 
-    void flashFirmware(const char * filename, ProgressHandler progressHandler);
+    void flashFirmware(const char * filename);
 
   protected:
     uint8_t module;
     const char * rxName;
 
-    const char * doFlashFirmware(const char * filename, ProgressHandler progressHandler);
+    const char * doFlashFirmware(const char * filename);
     bool waitStep(uint8_t step, uint8_t timeout);
     const char * nextStep(uint8_t step, const char * rxName, uint32_t address, const uint8_t * buffer);
 };

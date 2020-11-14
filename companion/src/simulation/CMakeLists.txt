@@ -99,7 +99,7 @@ include_directories(
   ${COMPANION_SRC_DIRECTORY}
   ${COMPANION_SRC_DIRECTORY}/simulation
   ${COMPANION_SRC_DIRECTORY}/simulation/widgets
-  ${RADIO_SRC_DIR}/fonts/std
+  ${RADIO_SRC_DIRECTORY}/fonts/std
 )
 
 qt5_wrap_ui(simulation_SRCS ${simulation_UIS})

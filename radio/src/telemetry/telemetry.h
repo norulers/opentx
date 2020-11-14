@@ -22,7 +22,6 @@
 #define _TELEMETRY_H_
 
 #include "frsky.h"
-#include "io/frsky_sport.h"
 #include "crossfire.h"
 #include "myeeprom.h"
 #include "io/frsky_sport.h"
@@ -35,7 +34,6 @@
   #include "hott.h"
   #include "multi.h"
 #endif
-#include "myeeprom.h"
 #if defined(MULTIMODULE) || defined(AFHDS3)
   #include "flysky_ibus.h"
 #endif
@@ -89,11 +87,11 @@ PACK(struct CellValue
   uint16_t value:15;
   uint16_t state:1;
 
-  void set(uint16_t newValue)
+  void set(uint16_t value)
   {
-    if (newValue > 50) {
-      value = newValue;
-      state = 1;
+    if (value > 50) {
+      this->value = value;
+      this->state = 1;
     }
   }
 });

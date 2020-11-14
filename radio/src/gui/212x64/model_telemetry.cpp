@@ -223,7 +223,7 @@ void menuModelTelemetry(event_t event)
         break;
 
       case ITEM_TELEMETRY_IGNORE_SENSOR_INSTANCE:
-        g_model.ignoreSensorIds = editCheckBox(g_model.ignoreSensorIds, TELEM_COL2, y, STR_IGNORE_INSTANCE, attr, event);
+        ON_OFF_MENU_ITEM(g_model.ignoreSensorIds, TELEM_COL2, y, STR_IGNORE_INSTANCE, attr, event);
         break;
 
       case ITEM_TELEMETRY_RSSI_LABEL:

@@ -23,8 +23,8 @@
 
 #include <inttypes.h>
 
-void audioInit() ;
-void audioEnd() ;
+void audioInit( void ) ;
+void audioEnd( void ) ;
 void audioConsumeCurrentBuffer();
 #define audioDisableIrq()       __disable_irq()
 #define audioEnableIrq()        __enable_irq()
@@ -35,7 +35,5 @@ void setSampleRate( uint32_t frequency ) ;
 #define VOLUME_LEVEL_DEF  12
 
 void setScaledVolume(uint8_t volume);
-
-#define audioWaitReady()
 
 #endif // _AUDIO_DRIVER_H_

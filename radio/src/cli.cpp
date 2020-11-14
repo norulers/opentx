@@ -347,24 +347,24 @@ int cliTestNew()
   return 0;
 }
 
-#if 0 // TODO later defined(COLORLCD)
+#if defined(COLORLCD)
 
 extern bool perMainEnabled;
 typedef void (*timedTestFunc_t)(void);
 
 void testDrawSolidFilledRectangle()
 {
-  lcdDrawFilledRect(0, 0, LCD_W, LCD_H, SOLID, DEFAULT_BGCOLOR);
+  lcdDrawFilledRect(0, 0, LCD_W, LCD_H, SOLID, TEXT_BGCOLOR);
 }
 
 void testDrawFilledRectangle()
 {
-  lcdDrawFilledRect(0, 0, LCD_W, LCD_H, DOTTED, DEFAULT_BGCOLOR);
+  lcdDrawFilledRect(0, 0, LCD_W, LCD_H, DOTTED, TEXT_BGCOLOR);
 }
 
 void testDrawSolidFilledRoundedRectangle()
 {
-  lcdDrawFilledRect(0, 0, LCD_W/2, LCD_H/2, SOLID, ROUND|DEFAULT_BGCOLOR);
+  lcdDrawFilledRect(0, 0, LCD_W/2, LCD_H/2, SOLID, ROUND|TEXT_BGCOLOR);
 }
 
 void testDrawBlackOverlay()
@@ -394,7 +394,7 @@ void testDrawSolidVerticalLine2()
 
 void testDrawDiagonalLine()
 {
-  lcdDrawLine(0,0, LCD_W, LCD_H, SOLID, DEFAULT_COLOR);
+  lcdDrawLine(0,0, LCD_W, LCD_H, SOLID, TEXT_COLOR);
 }
 
 void testEmpty()
@@ -403,17 +403,17 @@ void testEmpty()
 
 void testDrawRect()
 {
-  lcdDrawRect(0, 0, LCD_W, LCD_H, 2, SOLID, DEFAULT_COLOR);
+  lcdDrawRect(0, 0, LCD_W, LCD_H, 2, SOLID, TEXT_COLOR);
 }
 
 void testDrawText()
 {
-  lcdDrawText(0, LCD_H/2, "The quick brown fox jumps over the lazy dog", DEFAULT_COLOR);
+  lcdDrawText(0, LCD_H/2, "The quick brown fox jumps over the lazy dog", TEXT_COLOR);
 }
 
 void testDrawTextVertical()
 {
-  lcdDrawText(30, LCD_H, "The quick brown fox ", DEFAULT_COLOR|VERTICAL);
+  lcdDrawText(30, LCD_H, "The quick brown fox ", TEXT_COLOR|VERTICAL|NO_FONTCACHE);
 }
 
 void testClear()
@@ -616,7 +616,7 @@ int cliTestMemorySpeed()
   return 0;
 }
 
-#include "modelslist.h"
+#include "storage/modelslist.h"
 using std::list;
 
 int cliTestModelsList()
@@ -664,7 +664,7 @@ int cliTest(const char ** argv)
   else if (!strcmp(argv[1], "std::exception")) {
     serialPrint("Not implemented");
   }
-#if 0 // TODO later defined(COLORLCD)
+#if defined(COLORLCD)
   else if (!strcmp(argv[1], "graphics")) {
     return cliTestGraphics();
   }

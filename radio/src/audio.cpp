@@ -207,7 +207,7 @@ const char * const audioFilenames[] = {
   "midstck2",
   "midstck3",
   "midstck4",
-#if defined(PCBFRSKY)
+#if defined(PCBTARANIS) || defined(PCBHORUS)
   "midpot1",
   "midpot2",
 #if defined(PCBX9E)
@@ -317,7 +317,7 @@ void getSwitchAudioFile(char * filename, swsrc_t index)
 {
   char * str = getModelAudioPath(filename);
 
-#if defined(PCBFRSKY)
+#if defined(PCBTARANIS) || defined(PCBHORUS)
   if (index <= SWSRC_LAST_SWITCH) {
     div_t swinfo = switchInfo(index);
     *str++ = 'S';
@@ -345,7 +345,7 @@ void getLogicalSwitchAudioFile(char * filename, int index, unsigned int event)
 {
   char * str = getModelAudioPath(filename);
 
-#if defined(PCBFRSKY)
+#if defined(PCBTARANIS) || defined(PCBHORUS)
   *str++ = 'L';
   if (index >= 9) {
     div_t qr = div(index+1, 10);
@@ -518,19 +518,22 @@ AudioQueue::AudioQueue()
 #if !defined(SIMU)
 void audioTask(void * pdata)
 {
-  audioWaitReady();
-
   while (!audioQueue.started()) {
     RTOS_WAIT_TICKS(1);
   }
 
   setSampleRate(AUDIO_SAMPLE_RATE);
 
+#if defined(PCBX12S)
+  // The audio amp needs ~2s to start
+  RTOS_WAIT_MS(1000); // 1s
+#endif
+
   if (!globalData.unexpectedShutdown) {
     AUDIO_HELLO();
   }
 
-  while (true) {
+  while (1) {
     DEBUG_TIMER_SAMPLE(debugTimerAudioIterval);
     DEBUG_TIMER_START(debugTimerAudioDuration);
     audioQueue.wakeup();
@@ -1126,7 +1129,7 @@ void audioEvent(unsigned int index)
       case AU_POT3_MIDDLE:
       case AU_POT4_MIDDLE:
 #endif
-#if defined(PCBFRSKY)
+#if defined(PCBTARANIS) || defined(PCBHORUS)
       case AU_SLIDER1_MIDDLE:
       case AU_SLIDER2_MIDDLE:
 #if defined(PCBX9E)
@@ -1257,14 +1260,4 @@ void pushPrompt(uint16_t prompt, uint8_t id)
   }
   audioQueue.playFile(filename, 0, id);
 #endif
-}
-
-void onKeyPress()
-{
-  audioKeyPress();
-}
-
-void onKeyError()
-{
-  audioKeyError();
 }

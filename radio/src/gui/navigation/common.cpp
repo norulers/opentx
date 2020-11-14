@@ -26,7 +26,7 @@ swsrc_t checkIncDecMovedSwitch(swsrc_t val)
   if (s_editMode>0) {
     swsrc_t swtch = getMovedSwitch();
     if (swtch) {
-#if defined(PCBFRSKY)
+#if defined(PCBTARANIS) || defined(PCBHORUS)
       div_t info = switchInfo(swtch);
       if (IS_CONFIG_TOGGLE(info.quot)) {
         if (info.rem != 0) {
@@ -102,12 +102,12 @@ void onSourceLongEnterPress(const char * result)
 #if defined(NAVIGATION_HORUS)
 bool check_simple(event_t event, uint8_t curr, const MenuHandlerFunc *menuTab, uint8_t menuTabSize, int rowcount)
 {
-  return check(event, curr, menuTab, menuTabSize, nullptr, 0, rowcount);
+  return check(event, curr, menuTab, menuTabSize, NULL, 0, rowcount);
 }
 
 bool check_submenu_simple(event_t event, uint8_t rowcount)
 {
-  return check_simple(event, 0, nullptr, 0, rowcount);
+  return check_simple(event, 0, NULL, 0, rowcount);
 }
 #else
 void check_submenu_simple(event_t event, uint8_t rowcount)

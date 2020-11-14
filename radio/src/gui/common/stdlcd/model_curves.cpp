@@ -36,10 +36,9 @@ void drawCurve(coord_t offset)
   do {
     point_t point = getPoint(i);
     i++;
-    if (point.x == 0)
-      break;
-    lcdDrawFilledRect(point.x - offset, point.y - 1, 3, 3, SOLID, FORCE); // do markup square
-  } while (true);
+    if (point.x == 0) break;
+    lcdDrawFilledRect(point.x-offset, point.y-1, 3, 3, SOLID, FORCE); // do markup square
+  } while (1);
 }
 
 void menuModelCurvesAll(event_t event)
@@ -85,7 +84,7 @@ void menuModelCurvesAll(event_t event)
 #endif
     {
       drawStringWithIndex(0, y, STR_CV, k+1, attr);
-      CurveHeader & crv = g_model.curves[k];
+      CurveData & crv = g_model.curves[k];
       editName(4*FW, y, crv.name, sizeof(crv.name), 0, 0);
 #if LCD_W >= 212
       lcdDrawNumber(11*FW, y, 5+crv.points, LEFT);

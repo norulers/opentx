@@ -20,7 +20,7 @@
 
 #include "opentx.h"
 
-#if defined(PCBFRSKY) || defined(PCBFLYSKY)
+#if defined(PCBTARANIS) || defined(PCBHORUS)
 uint8_t switchToMix(uint8_t source)
 {
   div_t qr = div(source-1, 3);
@@ -119,17 +119,6 @@ bool isTelemetryFieldAvailable(int index)
 {
   TelemetrySensor & sensor = g_model.telemetrySensors[index];
   return sensor.isAvailable();
-}
-
-uint8_t getTelemetrySensorsCount()
-{
-  uint8_t count = 0;
-  for (auto telemetrySensor : g_model.telemetrySensors) {
-    if (telemetrySensor.isAvailable()) {
-      ++count;
-    }
-  }
-  return count;
 }
 
 bool isTelemetryFieldComparisonAvailable(int index)
@@ -289,6 +278,15 @@ bool isSourceAvailableInInputs(int source)
   return false;
 }
 
+enum SwitchContext
+{
+    LogicalSwitchesContext,
+    ModelCustomFunctionsContext,
+    GeneralCustomFunctionsContext,
+    TimersContext,
+    MixesContext
+};
+
 bool isLogicalSwitchAvailable(int index)
 {
   LogicalSwitchData * lsw = lswAddress(index);
@@ -418,6 +416,14 @@ bool isSwitchAvailableInLogicalSwitches(int swtch)
   return isSwitchAvailable(swtch, LogicalSwitchesContext);
 }
 
+bool isSwitchAvailableInCustomFunctions(int swtch)
+{
+  if (menuHandlers[menuLevel] == menuModelSpecialFunctions)
+    return isSwitchAvailable(swtch, ModelCustomFunctionsContext);
+  else
+    return isSwitchAvailable(swtch, GeneralCustomFunctionsContext);
+}
+
 bool isSwitchAvailableInMixes(int swtch)
 {
   return isSwitchAvailable(swtch, MixesContext);
@@ -430,23 +436,23 @@ bool isSwitch2POSWarningStateAvailable(int state)
 }
 #endif // #if defined(COLORLCD)
 
-//bool isSwitchAvailableInTimers(int swtch)
-//{
-//  if (swtch >= 0) {
-//    if (swtch < TMRMODE_COUNT)
-//      return true;
-//    else
-//      swtch -= TMRMODE_COUNT-1;
-//  }
-//  else {
-//    if (swtch > -TMRMODE_COUNT)
-//      return false;
-//    else
-//      swtch += TMRMODE_COUNT-1;
-//  }
-//
-//  return isSwitchAvailable(swtch, TimersContext);
-//}
+bool isSwitchAvailableInTimers(int swtch)
+{
+  if (swtch >= 0) {
+    if (swtch < TMRMODE_COUNT)
+      return true;
+    else
+      swtch -= TMRMODE_COUNT-1;
+  }
+  else {
+    if (swtch > -TMRMODE_COUNT)
+      return false;
+    else
+      swtch += TMRMODE_COUNT-1;
+  }
+
+  return isSwitchAvailable(swtch, TimersContext);
+}
 
 bool isThrottleSourceAvailable(int source)
 {
@@ -461,10 +467,10 @@ bool isLogicalSwitchFunctionAvailable(int function)
   return function != LS_FUNC_RANGE;
 }
 
-bool isAssignableFunctionAvailable(int function, CustomFunctionData * functions)
+bool isAssignableFunctionAvailable(int function)
 {
 #if defined(OVERRIDE_CHANNEL_FUNCTION) || defined(GVARS)
-  bool modelFunctions = (functions == g_model.customFn);
+  bool modelFunctions = (menuHandlers[menuLevel] == menuModelSpecialFunctions);
 #endif
 
   switch (function) {
@@ -489,7 +495,7 @@ bool isAssignableFunctionAvailable(int function, CustomFunctionData * functions)
     case FUNC_BIND:
 #endif
 #if !defined(LUA)
-    case FUNC_PLAY_SCRIPT:
+      case FUNC_PLAY_SCRIPT:
 #endif
     case FUNC_RESERVE5:
       return false;
@@ -498,13 +504,6 @@ bool isAssignableFunctionAvailable(int function, CustomFunctionData * functions)
       return true;
   }
 }
-
-#if !defined(COLORLCD)
-bool isAssignableFunctionAvailable(int function)
-{
-  return isAssignableFunctionAvailable(function, menuHandlers[menuLevel] == menuModelSpecialFunctions ? g_model.customFn : g_eeGeneral.customFn);
-}
-#endif
 
 bool isSourceAvailableInGlobalResetSpecialFunction(int index)
 {
@@ -633,11 +632,6 @@ bool isInternalModuleAvailable(int moduleType)
   }
   return false;
 }
-#else
-bool isInternalModuleAvailable(int moduleType)
-{
-  return false;
-}
 #endif
 
 bool isExternalModuleAvailable(int moduleType)
@@ -664,7 +658,6 @@ bool isExternalModuleAvailable(int moduleType)
 
   if (moduleType == MODULE_TYPE_ISRM_PXX2)
     return false; // doesn't exist for now
-
 
 #if !defined(PXX2) || !defined(EXTMODULE_USART)
   if (moduleType == MODULE_TYPE_XJT_LITE_PXX2 || moduleType == MODULE_TYPE_R9M_PXX2 || moduleType == MODULE_TYPE_R9M_LITE_PXX2 || moduleType == MODULE_TYPE_R9M_LITE_PRO_PXX2) {
@@ -798,7 +791,7 @@ bool isTrainerModeAvailable(int mode)
   }
 #endif
 
-#if defined(RADIO_TX16S)
+#if defined(RADIO_TX16S) && defined(TRAINER_BATTERY_COMPARTMENT)
   if (mode == TRAINER_MODE_MASTER_BATTERY_COMPARTMENT)
     return (g_eeGeneral.auxSerialMode == UART_MODE_SBUS_TRAINER || g_eeGeneral.aux2SerialMode == UART_MODE_SBUS_TRAINER);
 #elif defined(PCBTARANIS) && !defined(TRAINER_BATTERY_COMPARTMENT)
@@ -1026,7 +1019,7 @@ const mm_protocol_definition multi_protocols[] = {
   {MODULE_SUBTYPE_MULTI_SFHSS,      0, true,  true,   NO_SUBTYPE,            STR_MULTI_RFTUNE},
   {MODULE_SUBTYPE_MULTI_J6PRO,      0, false, true,   NO_SUBTYPE,            nullptr},
   {MODULE_SUBTYPE_MULTI_HONTAI,     3, false, false,  STR_SUBTYPE_HONTAI,    nullptr},
-  {MODULE_SUBTYPE_MULTI_OLRS,       0, false, false,  NO_SUBTYPE,            STR_RF_POWER},
+  {MODULE_SUBTYPE_MULTI_OLRS,       0, false, false,  NO_SUBTYPE,            STR_RFPOWER},
   {MODULE_SUBTYPE_MULTI_FS_AFHDS2A, 3, true,  true,   STR_SUBTYPE_AFHDS2A,   STR_MULTI_SERVOFREQ},
   {MODULE_SUBTYPE_MULTI_Q2X2,       2, false, false,  STR_SUBTYPE_Q2X2,      nullptr},
   {MODULE_SUBTYPE_MULTI_WK_2X01,    5, false, true,   STR_SUBTYPE_WK2x01,    nullptr},
@@ -1080,3 +1073,12 @@ const mm_protocol_definition *getMultiProtocolDefinition (uint8_t protocol)
   return pdef;
 }
 #endif
+
+void editStickHardwareSettings(coord_t x, coord_t y, int idx, event_t event, LcdFlags flags)
+{
+  lcdDrawTextAtIndex(INDENT_WIDTH, y, STR_VSRCRAW, idx+1, 0);
+  if (ZEXIST(g_eeGeneral.anaNames[idx]) || (flags && s_editMode > 0))
+    editName(x, y, g_eeGeneral.anaNames[idx], LEN_ANA_NAME, event, flags);
+  else
+    lcdDrawMMM(x, y, flags);
+}

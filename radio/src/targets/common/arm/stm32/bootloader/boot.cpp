@@ -520,6 +520,6 @@ int main()
   return 0;
 }
 
-#if defined(PCBHORUS) || defined(PCBNV14)
+#if defined(PCBHORUS)
 void *__dso_handle = nullptr;
 #endif

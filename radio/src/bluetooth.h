@@ -67,7 +67,7 @@ class Bluetooth
 
     void forwardTelemetry(const uint8_t * packet);
     void wakeup();
-    const char * flashFirmware(const char * filename, ProgressHandler progressHandler);
+    const char * flashFirmware(const char * filename);
 
     volatile uint8_t state;
     char localAddr[LEN_BLUETOOTH_ADDR+1];
@@ -94,7 +94,7 @@ class Bluetooth
     const char * bootloaderEraseFlash(uint32_t start, uint32_t size);
     const char * bootloaderStartWriteFlash(uint32_t start, uint32_t size);
     const char * bootloaderWriteFlash(const uint8_t * data, uint32_t size);
-    const char * doFlashFirmware(const char * filename, ProgressHandler progressHandler);
+    const char * doFlashFirmware(const char * filename);
 
     uint8_t buffer[BLUETOOTH_LINE_LENGTH+1];
     uint8_t bufferIndex = 0;

@@ -131,7 +131,7 @@ class BindInformation {
 
 class OtaUpdateInformation: public BindInformation {
   public:
-    char filename[FF_MAX_LFN + 1];
+    char filename[_MAX_LFN + 1];
     uint32_t address;
     uint32_t module;
 };
@@ -196,16 +196,6 @@ PACK(struct ModuleState {
 });
 
 extern ModuleState moduleState[NUM_MODULES];
-
-inline bool isModuleBeeping(uint8_t moduleIndex)
-{
-#if defined(MULTIMODULE)
-  if (getMultiBindStatus(moduleIndex) != MULTI_BIND_NONE)
-    return true;
-#endif
-
-  return moduleState[moduleIndex].mode >= MODULE_MODE_BEEP_FIRST;
-}
 
 template<class T> struct PpmPulsesData {
   T pulses[20];

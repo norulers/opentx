@@ -28,8 +28,8 @@
 #include "opentx.h"
 
 #define ROOT_PATH           "/"
-#define MODELS_PATH         ROOT_PATH "MODELS24"      // no trailing slash = important //TODO Temporary while working on both 2.3 and 2.4
-#define RADIO_PATH          ROOT_PATH "RADIO24"       // no trailing slash = important
+#define MODELS_PATH         ROOT_PATH "MODELS"      // no trailing slash = important
+#define RADIO_PATH          ROOT_PATH "RADIO"       // no trailing slash = important
 #define LOGS_PATH           ROOT_PATH "LOGS"
 #define SCREENSHOTS_PATH    ROOT_PATH "SCREENSHOTS"
 #define SOUNDS_PATH         ROOT_PATH "SOUNDS/en"
@@ -55,10 +55,6 @@
 #if defined(COLORLCD)
 const char RADIO_MODELSLIST_PATH[] = RADIO_PATH "/models.txt";
 const char RADIO_SETTINGS_PATH[] = RADIO_PATH "/radio.bin";
-#if defined(SDCARD_YAML)
-const char RADIO_MODELSLIST_YAML_PATH[] = RADIO_PATH "/models.yml";
-const char RADIO_SETTINGS_YAML_PATH[] = RADIO_PATH "/radio.yml";
-#endif
 #define    SPLASH_FILE             "splash.png"
 #endif
 
@@ -76,9 +72,11 @@ const char RADIO_SETTINGS_YAML_PATH[] = RADIO_PATH "/radio.yml";
 #define SPORT_FIRMWARE_EXT  ".frk"
 #define FRSKY_FIRMWARE_EXT  ".frsk"
 #define MULTI_FIRMWARE_EXT  ".bin"
-#define YAML_EXT            ".yml"
+#define ELRS_FIRMWARE_EXT   ".elrs"
 
-#if defined(COLORLCD)
+#define LEN_FILE_EXTENSION_MAX  5  // longest used, including the dot, excluding null term.
+
+#if defined(PCBHORUS)
 #define BITMAPS_EXT         BMP_EXT JPG_EXT PNG_EXT
 #define LEN_BITMAPS_EXT     4
 #else
@@ -124,6 +122,7 @@ inline const char * SDCARD_ERROR(FRESULT result)
 #endif
 
 // NOTE: 'size' must = 0 or be a valid character position within 'filename' array -- it is NOT validated
+const char * getFileExtension(const char * filename, uint8_t size=0, uint8_t extMaxLen=0, uint8_t * fnlen=nullptr, uint8_t * extlen=nullptr);
 const char * getBasename(const char * path);
 
 #if defined(PCBX12S)
@@ -152,14 +151,13 @@ const char * getBasename(const char * path);
   #define OTX_FOURCC 0x3C78746F // otx for Taranis X9-Lite
 #elif defined(PCBX9D) || defined(PCBX9DP)
   #define OTX_FOURCC 0x3378746F // otx for Taranis X9D
-#elif defined(PCBNV14)
-  #define OTX_FOURCC 0x3A78746F // otx for NV14
 #elif defined(PCBSKY9X)
   #define OTX_FOURCC 0x3278746F // otx for sky9x
 #endif
 
 bool isFileAvailable(const char * filename, bool exclDir = false);
-unsigned int findNextFileIndex(char * filename, uint8_t size, const char * directory);
+int findNextFileIndex(char * filename, uint8_t size, const char * directory);
+bool isExtensionMatching(const char * extension, const char * pattern, char * match = nullptr);
 
 const char * sdCopyFile(const char * src, const char * dest);
 const char * sdCopyFile(const char * srcFilename, const char * srcDir, const char * destFilename, const char * destDir);
@@ -169,5 +167,8 @@ const char * sdCopyFile(const char * srcFilename, const char * srcDir, const cha
 bool sdListFiles(const char * path, const char * extension, const uint8_t maxlen, const char * selection, uint8_t flags=0);
 
 void sdReadTextFile(const char * filename, char lines[NUM_BODY_LINES][LCD_COLS + 1], int & lines_count);
+
+bool isCwdAtRoot();
+FRESULT sdReadDir(DIR * dir, FILINFO * fno, bool & firstTime);
 
 #endif // _SDCARD_H_

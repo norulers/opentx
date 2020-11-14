@@ -19,10 +19,9 @@
  */
 
 #include "opentx.h"
-#include "strhelpers.h"
 
 #if !defined(BOOT)
-const char s_charTab[] = "_-.,";
+const char s_charTab[]  = "_-.,";
 
 char hex2zchar(uint8_t hex)
 {
@@ -84,10 +83,20 @@ int zchar2str(char * dest, const char * src, int size)
   return size+1;
 }
 
+bool cmpStrWithZchar(const char * charString, const char * zcharString, int size)
+{
+  for (int i=0; i<size; i++) {
+    if (charString[i] != zchar2char(zcharString[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
 unsigned int effectiveLen(const char * str, unsigned int size)
 {
   while (size > 0) {
-    if (str[size-1] != ' ' && str[size-1] != '\0')
+    if (str[size-1] != ' ')
       return size;
     size--;
   }
@@ -127,7 +136,9 @@ char * strcat_zchar(char * dest, const char * name, uint8_t size, const char * d
       if (!len && dest[i])
         len = i+1;
       if (len) {
-        if (!dest[i])
+        if (dest[i])
+          dest[i] = zchar2char(dest[i]);
+        else
           dest[i] = '_';
       }
       i--;
@@ -245,8 +256,8 @@ char * getCurveString(char * dest, int idx)
     idx = -idx;
   }
 
-  if (g_model.curves[idx - 1].name[0])
-    strAppend(s, g_model.curves[idx - 1].name, LEN_CURVE_NAME);
+  if (ZEXIST(g_model.curves[idx - 1].name))
+    zchar2str(s, g_model.curves[idx - 1].name, LEN_CURVE_NAME);
   else
     strAppendStringWithIndex(s, STR_CV, idx);
 
@@ -261,45 +272,11 @@ char * getGVarString(char * dest, int idx)
     idx = -idx-1;
   }
 
-  if (g_model.gvars[idx].name[0])
-    strAppend(s, g_model.gvars[idx].name, LEN_GVAR_NAME);
+  if (ZEXIST(g_model.gvars[idx].name))
+    zchar2str(s, g_model.gvars[idx].name, LEN_GVAR_NAME);
   else
     strAppendStringWithIndex(s, STR_GV, idx+1);
 
-  return dest;
-}
-
-char * getFlightModeString(char * dest, int8_t idx)
-{
-  char * s = dest;
-
-  if (idx==0) {
-    strcpy(s, "---");
-    return dest;
-  }
-
-  if (idx < 0) {
-    *s++ = '!';
-    idx = -idx;
-  }
-
-  s = strAppend(s, STR_FM);
-  strAppendUnsigned(s, idx - 1);
-  return dest;
-}
-
-char * getSwitchWarningString(char * dest, swsrc_t idx)
-{
-  char * s = dest;
-  uint8_t state = g_model.switchWarningState >> (3*idx) & 0x07;
-
-  *s++ = 'A' + idx;
-  if (state == 0)
-    *s = '\0';
-  else {
-    *s++ = "x\300-\301"[state];
-    *s = '\0';
-  }
   return dest;
 }
 
@@ -354,12 +331,12 @@ char * getSwitchPositionName(char * dest, swsrc_t idx)
     getStringAtIndex(s, STR_VSWITCHES, idx);
   }
 #else
-#define IDX_TRIMS_IN_STR_VSWITCHES   (1)
-#define IDX_ON_IN_STR_VSWITCHES      (IDX_TRIMS_IN_STR_VSWITCHES + SWSRC_LAST_TRIM - SWSRC_FIRST_TRIM + 1)
+  #define IDX_TRIMS_IN_STR_VSWITCHES   (1)
+  #define IDX_ON_IN_STR_VSWITCHES      (IDX_TRIMS_IN_STR_VSWITCHES + SWSRC_LAST_TRIM - SWSRC_FIRST_TRIM + 1)
   if (idx <= SWSRC_LAST_SWITCH) {
     div_t swinfo = switchInfo(idx);
     s = getSwitchName(s, idx);
-    *s++ = "\200-\201"[swinfo.rem];
+    *s++ = "\300-\301"[swinfo.rem];
     *s = '\0';
   }
 #endif // PCBSKY9X
@@ -419,13 +396,13 @@ char * getSourceString(char * dest, mixsrc_t idx)
   }
   else if (idx <= MIXSRC_LAST_INPUT) {
     idx -= MIXSRC_FIRST_INPUT;
-    *dest = CHAR_INPUT;
-    if (strlen(g_model.inputNames[idx])) {
-      memset(dest + 1, 0, LEN_INPUT_NAME);
-      strncpy(dest + 1, g_model.inputNames[idx], LEN_INPUT_NAME);
+    *dest++ = '\314';
+    if (ZEXIST(g_model.inputNames[idx])) {
+      zchar2str(dest, g_model.inputNames[idx], LEN_INPUT_NAME);
+      dest[LEN_INPUT_NAME] = '\0';
     }
     else {
-      strAppendUnsigned(dest + 1, idx + 1, 2);
+      strAppendUnsigned(dest, idx+1, 2);
     }
   }
 #if defined(LUA_INPUTS)
@@ -433,7 +410,7 @@ char * getSourceString(char * dest, mixsrc_t idx)
 #if defined(LUA_MODEL_SCRIPTS)
     div_t qr = div(idx-MIXSRC_FIRST_LUA, MAX_SCRIPT_OUTPUTS);
     if (qr.quot < MAX_SCRIPTS && qr.rem < scriptInputsOutputs[qr.quot].outputsCount) {
-      *dest++ = CHAR_LUA;
+      *dest++ = '\322';
       // *dest++ = '1'+qr.quot;
       strcpy(dest, scriptInputsOutputs[qr.quot].outputs[qr.rem].name);
     }
@@ -444,7 +421,7 @@ char * getSourceString(char * dest, mixsrc_t idx)
 #endif
   else if (idx <= MIXSRC_LAST_POT) {
     idx -= MIXSRC_Rud;
-    if (g_eeGeneral.anaNames[idx][0]) {
+    if (ZEXIST(g_eeGeneral.anaNames[idx])) {
       zchar2str(dest, g_eeGeneral.anaNames[idx], LEN_ANA_NAME);
       dest[LEN_ANA_NAME] = '\0';
     }
@@ -607,39 +584,5 @@ char * strAppendDate(char * str, bool time)
     str[11] = '\0';
     return &str[11];
   }
-}
-#endif
-
-#if !defined(BOOT)
-static char tmpHelpersString[32];
-
-char * getSwitchWarningString(swsrc_t idx)
-{
-  return getSwitchWarningString(tmpHelpersString, idx);
-}
-
-char * getSourceString(mixsrc_t idx)
-{
-  return getSourceString(tmpHelpersString, idx);
-}
-
-char * getCurveString(int idx)
-{
-  return getCurveString(tmpHelpersString, idx);
-}
-
-char * getTimerString(int32_t tme, uint8_t hours)
-{
-  return getTimerString(tmpHelpersString, tme, hours);
-}
-
-char * getSwitchPositionName(swsrc_t idx)
-{
-  return getSwitchPositionName(tmpHelpersString, idx);
-}
-
-char * getGVarString(int idx)
-{
-  return getGVarString(tmpHelpersString, idx);
 }
 #endif

@@ -20,7 +20,7 @@
 
 #include "opentx.h"
 
-const char * warningText = nullptr;
+const char * warningText = NULL;
 const char * warningInfoText;
 uint8_t      warningInfoLength;
 uint8_t      warningType;
@@ -28,7 +28,7 @@ uint8_t      warningResult = 0;
 uint8_t      warningInfoFlags = ZCHAR;
 
 uint8_t      popupMenuOffsetType = MENU_OFFSET_INTERNAL;
-void         (* popupFunc)(event_t event) = nullptr;
+void         (* popupFunc)(event_t event) = NULL;
 
 const char * popupMenuItems[POPUP_MENU_MAX_LINES];
 uint8_t      popupMenuSelectedItem = 0;
@@ -183,7 +183,7 @@ void runPopupWarning(event_t event)
       break;
 
     case WARNING_TYPE_ASTERISK:
-      lcdDrawText(WARNING_LINE_X, WARNING_LINE_Y+2*FH+2, BUTTON(TR_EXIT));
+      lcdDrawText(WARNING_LINE_X, WARNING_LINE_Y+2*FH+2, STR_EXIT);
       break;
 
     default:

@@ -19,7 +19,6 @@
  */
 
 #include "opentx.h"
-#include "rtc_backup.h"
 
 namespace Backup {
 #define BACKUP

@@ -51,8 +51,9 @@ void preModelLoad()
   if (pulsesStarted()) {
     pausePulses();
   }
-
   pauseMixerCalculations();
+
+  stopTrainer();
 }
 
 void postRadioSettingsLoad()
@@ -94,23 +95,15 @@ void checkExternalAntenna()
     }
     else if (g_eeGeneral.antennaMode == ANTENNA_MODE_PER_MODEL && g_model.moduleData[INTERNAL_MODULE].pxx.antennaMode == ANTENNA_MODE_EXTERNAL) {
       if (!globalData.externalAntennaEnabled) {
-#if defined(COLORLCD)
-#warning "Antenna confirmation dialog needed"
-#else
         POPUP_CONFIRMATION(STR_ANTENNACONFIRM1, onAntennaSwitchConfirm);
         SET_WARNING_INFO(STR_ANTENNACONFIRM2, sizeof(TR_ANTENNACONFIRM2), 0);
-#endif
       }
     }
     else if (g_eeGeneral.antennaMode == ANTENNA_MODE_ASK || (g_eeGeneral.antennaMode == ANTENNA_MODE_PER_MODEL && g_model.moduleData[INTERNAL_MODULE].pxx.antennaMode == ANTENNA_MODE_ASK)) {
       globalData.externalAntennaEnabled = false;
-#if defined(COLORLCD)
-#warning "Antenna confirmation dialog needed"
-#else
       POPUP_MENU_ADD_ITEM(STR_USE_INTERNAL_ANTENNA);
       POPUP_MENU_ADD_ITEM(STR_USE_EXTERNAL_ANTENNA);
       POPUP_MENU_START(onAntennaSelection);
-#endif
     }
     else {
       globalData.externalAntennaEnabled = false;
@@ -166,7 +159,7 @@ void postModelLoad(bool alarms)
     }
   }
 
-  loadCurves();
+  LOAD_MODEL_CURVES();
 
   resumeMixerCalculations();
   if (pulsesStarted()) {
@@ -183,7 +176,7 @@ void postModelLoad(bool alarms)
   referenceModelAudioFiles();
 #endif
 
-#if defined(COLORLCD)
+#if defined(PCBHORUS)
   loadCustomScreens();
 #endif
 

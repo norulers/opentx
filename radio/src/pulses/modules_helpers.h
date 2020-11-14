@@ -21,7 +21,7 @@
 #ifndef _MODULES_HELPERS_H_
 #define _MODULES_HELPERS_H_
 
-#include "libopenui/src/bitfield.h"
+#include "bitfield.h"
 #include "definitions.h"
 #include "opentx_helpers.h"
 #include "telemetry/telemetry.h"
@@ -319,8 +319,8 @@ inline bool isModuleAFHDS3(uint8_t idx)
 
 // order is the same as in enum Protocols in myeeprom.h (none, ppm, pxx, pxx2, dsm, crossfire, multi, r9m, r9m2, sbus)
 //qba667 count is not matching!
-static const int8_t maxChannelsModules_M8[] = { 0, 8, 8, 16, -2, 8, 4, 8, 16, 8, 10 }; // relative to 8!
-static const int8_t maxChannelsXJT_M8[] = { 0, 8, 0, 4 }; // relative to 8!
+static const int8_t maxChannelsModules[] = { 0, 8, 8, 16, -2, 8, 4, 8, 16, 8, 10}; // relative to 8!
+static const int8_t maxChannelsXJT[] = { 0, 8, 0, 4 }; // relative to 8!
 
 constexpr int8_t MAX_TRAINER_CHANNELS_M8 = MAX_TRAINER_CHANNELS - 8;
 constexpr int8_t MAX_EXTRA_MODULE_CHANNELS_M8 = 8; // only 16ch PPM
@@ -331,7 +331,7 @@ inline int8_t maxModuleChannels_M8(uint8_t moduleIdx)
     return MAX_EXTRA_MODULE_CHANNELS_M8;
   }
   else if (isModuleXJT(moduleIdx)) {
-    return maxChannelsXJT_M8[1 + g_model.moduleData[moduleIdx].subType];
+    return maxChannelsXJT[1 + g_model.moduleData[moduleIdx].subType];
   }
   else if (isModuleR9M(moduleIdx)) {
     if (isModuleR9M_LBT(moduleIdx)) {
@@ -348,21 +348,8 @@ inline int8_t maxModuleChannels_M8(uint8_t moduleIdx)
     return 10;
   }
   else {
-    return maxChannelsModules_M8[g_model.moduleData[moduleIdx].type];
+    return maxChannelsModules[g_model.moduleData[moduleIdx].type];
   }
-}
-
-inline int8_t maxModuleChannels(uint8_t moduleIdx)
-{
-  return maxModuleChannels_M8(moduleIdx) + 8;
-}
-
-inline int8_t minModuleChannels(uint8_t idx)
-{
-  if (isModuleCrossfire(idx))
-    return 16;
-  else
-    return 1;
 }
 
 inline int8_t defaultModuleChannels_M8(uint8_t idx)
@@ -425,29 +412,6 @@ inline bool isModuleRxNumAvailable(uint8_t moduleIdx)
     return true;
 
   if (isModuleCrossfire(moduleIdx))
-    return true;
-
-  return false;
-}
-
-inline bool isModuleModelIndexAvailable(uint8_t idx)
-{
-  if (isModuleXJT(idx))
-    return g_model.moduleData[idx].subType != MODULE_SUBTYPE_PXX1_ACCST_D8;
-
-  if (isModuleR9M(idx))
-    return true;
-
-  if (isModuleDSM2(idx))
-    return true;
-
-  if (isModuleISRM(idx))
-    return true;
-
-  if (isModuleMultimodule(idx))
-    return true;
-
-  if (isModuleCrossfire(idx))
     return true;
 
   return false;
@@ -671,7 +635,6 @@ inline void resetMultiProtocolsOptions(uint8_t moduleIdx)
   else {
     g_model.moduleData[moduleIdx].multi.autoBindMode = 0;
   }
-  g_model.moduleData[moduleIdx].subType = 0;
   g_model.moduleData[moduleIdx].multi.optionValue = 0;
   g_model.moduleData[moduleIdx].multi.disableTelemetry = 0;
   g_model.moduleData[moduleIdx].multi.disableMapping = 0;

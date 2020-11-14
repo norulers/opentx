@@ -22,9 +22,7 @@
 #define _AUDIO_H_
 
 #include <stddef.h>
-#include <string.h>
 #include "ff.h"
-#include "opentx_types.h"
 
 /*
   Implements a bit field, number of bits is set by the template,
@@ -104,7 +102,7 @@ enum AudioBufferState
   #define AUDIO_DATA_MIN               0
   #define AUDIO_DATA_MAX               0xffff
   #define AUDIO_BITS_PER_SAMPLE        16
-#elif defined(PCBX12S) || defined(PCBNV14)
+#elif defined(PCBX12S)
   typedef int16_t audio_data_t;
   #define AUDIO_DATA_SILENCE           0
   #define AUDIO_DATA_MIN               INT16_MIN

@@ -52,9 +52,6 @@ class OpenTxSim: public FXMainWindow
     ~OpenTxSim();
     void updateKeysAndSwitches(bool start=false);
     long onKeypress(FXObject*, FXSelector, void*);
-    long onMouseDown(FXObject*,FXSelector,void*);
-    long onMouseUp(FXObject*,FXSelector,void*);
-    long onMouseMove(FXObject*,FXSelector,void*);
     long onTimeout(FXObject*, FXSelector, void*);
     void createBitmap(int index, uint16_t *data, int x, int y, int w, int h);
     void makeSnapshot(const FXDrawable* drawable);
@@ -76,9 +73,6 @@ FXDEFMAP(OpenTxSim) OpenTxSimMap[] = {
   // Message_Type   _______ID____Message_Handler_______
   FXMAPFUNC(SEL_TIMEOUT,   2,    OpenTxSim::onTimeout),
   FXMAPFUNC(SEL_KEYPRESS,  0,    OpenTxSim::onKeypress),
-  FXMAPFUNC(SEL_LEFTBUTTONPRESS, 0, OpenTxSim::onMouseDown),
-  FXMAPFUNC(SEL_LEFTBUTTONRELEASE, 0, OpenTxSim::onMouseUp),
-  FXMAPFUNC(SEL_MOTION,    0,    OpenTxSim::onMouseMove),
 };
 
 FXIMPLEMENT(OpenTxSim, FXMainWindow, OpenTxSimMap, ARRAYNUMBER(OpenTxSimMap))
@@ -86,7 +80,7 @@ FXIMPLEMENT(OpenTxSim, FXMainWindow, OpenTxSimMap, ARRAYNUMBER(OpenTxSimMap))
 OpenTxSim::OpenTxSim(FXApp* a):
   FXMainWindow(a, "OpenTX Simu", nullptr, nullptr, DECOR_ALL, 20, 90, 0, 0)
 {
-  memset(displayBuf, 0, DISPLAY_BUFFER_SIZE * sizeof(pixel_t));
+  memset(displayBuf, 0, DISPLAY_BUFFER_SIZE * sizeof(display_t));
   bmp = new FXPPMImage(getApp(), nullptr, IMAGE_OWNED|IMAGE_KEEP|IMAGE_SHMI|IMAGE_SHMP, W2, H2);
 
 #if defined(SIMU_AUDIO)
@@ -146,13 +140,11 @@ OpenTxSim::OpenTxSim(FXApp* a):
 
 OpenTxSim::~OpenTxSim()
 {
-  TRACE("OpenTxSim::~OpenTxSim()");
-
-  simuStop();
-  stopAudioThread();
+  StopSimu();
+  StopAudioThread();
 
 #if defined(EEPROM)
-  stopEepromThread();
+  StopEepromThread();
 #endif
 
   delete bmp;
@@ -178,7 +170,7 @@ void OpenTxSim::createBitmap(int index, uint16_t *data, int x, int y, int w, int
 
   for (int i=0; i<w; i++) {
     for (int j=0; j<h; j++) {
-      pixel_t z = data[(y+j) * LCD_W + (x+i)];
+      display_t z = data[(y+j) * LCD_W + (x+i)];
       FXColor color = FXRGB(255*((z&0xF00)>>8)/0x0f, 255*((z&0x0F0)>>4)/0x0f, 255*(z&0x00F)/0x0f);
       snapshot.setPixel(i, j, color);
     }
@@ -252,71 +244,10 @@ long OpenTxSim::onKeypress(FXObject *, FXSelector, void * v)
   return 0;
 }
 
-long OpenTxSim::onMouseDown(FXObject *, FXSelector, void * v)
-{
-  FXEvent * evt = (FXEvent *)v;
-  UNUSED(evt);
-
-  TRACE_WINDOWS("[Mouse Press] %d %d", evt->win_x, evt->win_y);
-
-#if defined(HARDWARE_TOUCH)
-  touchState.event = TE_DOWN;
-  touchState.startX = touchState.x = evt->win_x;
-  touchState.startY = touchState.y = evt->win_y;
-#endif
-
-  return 0;
-}
-
-long OpenTxSim::onMouseUp(FXObject*,FXSelector,void*v)
-{
-  FXEvent * evt = (FXEvent *)v;
-  UNUSED(evt);
-
-  TRACE_WINDOWS("[Mouse Release] %d %d", evt->win_x, evt->win_y);
-
-#if defined(HARDWARE_TOUCH)
-  if (touchState.event == TE_DOWN) {
-    touchState.event = TE_UP;
-    touchState.x = touchState.startX;
-    touchState.y = touchState.startY;
-  }
-  else {
-    touchState.event = TE_SLIDE_END;
-  }
-#endif
-
-  return 0;
-}
-
-long OpenTxSim::onMouseMove(FXObject*,FXSelector,void*v)
-{
-  FXEvent * evt = (FXEvent *)v;
-  UNUSED(evt);
-
-  if (evt->state & LEFTBUTTONMASK) {
-    TRACE_WINDOWS("[Mouse Move] %d %d", evt->win_x, evt->win_y);
-
-#if defined(HARDWARE_TOUCH)
-    touchState.deltaX += evt->win_x - touchState.x;
-    touchState.deltaY += evt->win_y - touchState.y;
-    if (touchState.event == TE_SLIDE || abs(touchState.deltaX) >= SLIDE_RANGE || abs(touchState.deltaY) >= SLIDE_RANGE) {
-      touchState.event = TE_SLIDE;
-      touchState.x = evt->win_x;
-      touchState.y = evt->win_y;
-    }
-#endif
-  }
-
-  return 0;
-}
-
 void OpenTxSim::updateKeysAndSwitches(bool start)
 {
   static int keys[] = {
-#if defined(PCBNV14)
-    // no keys
-#elif defined(PCBHORUS)
+#if defined(PCBHORUS)
     KEY_Page_Up,   KEY_PGUP,
     KEY_Page_Down, KEY_PGDN,
     KEY_Return,    KEY_ENTER,
@@ -361,7 +292,7 @@ void OpenTxSim::updateKeysAndSwitches(bool start)
   // gruvin: Can't use Function keys on the Mac -- too many other app conflicts.
   //         The ordering of these keys, Q/W,E/R,T/Y,U/I matches the on screen
   //         order of trim sliders
-  static FXuint trimKeys[] = { KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0 };
+  static FXuint trimKeys[] = { KEY_E, KEY_R, KEY_U, KEY_I, KEY_R, KEY_E, KEY_Y, KEY_T, KEY_Q, KEY_W };
 #else
   static FXuint trimKeys[] = { KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_F11, KEY_F12 };
 #endif
@@ -438,11 +369,11 @@ long OpenTxSim::onTimeout(FXObject*, FXSelector, void*)
 
 #if defined(ROTARY_ENCODER_NAVIGATION)
     static bool rotencAction = false;
-    if (getApp()->getKeyState(KEY_X) || getApp()->getKeyState(KEY_plus)) {
+    if (getApp()->getKeyState(KEY_X)) {
       if (!rotencAction) ROTARY_ENCODER_NAVIGATION_VALUE += ROTARY_ENCODER_GRANULARITY;
       rotencAction = true;
     }
-    else if (getApp()->getKeyState(KEY_W) || getApp()->getKeyState(KEY_minus)) {
+    else if (getApp()->getKeyState(KEY_W)) {
       if (!rotencAction) ROTARY_ENCODER_NAVIGATION_VALUE -= ROTARY_ENCODER_GRANULARITY;
       rotencAction = true;
     }
@@ -492,7 +423,7 @@ void OpenTxSim::refreshDisplay()
     for (int x=0; x<LCD_W; x++) {
       for (int y=0; y<LCD_H; y++) {
 #if defined(COLORLCD)
-    	pixel_t z = simuLcdBuf[y * LCD_W + x];
+    	display_t z = simuLcdBuf[y * LCD_W + x];
     	if (1) {
           if (z == 0) {
             setPixel(x, y, FXRGB(0, 0, 0));
@@ -506,7 +437,7 @@ void OpenTxSim::refreshDisplay()
           }
     	}
 #elif LCD_DEPTH == 4
-        pixel_t * p = &simuLcdBuf[y / 2 * LCD_W + x];
+        display_t * p = &simuLcdBuf[y / 2 * LCD_W + x];
         uint8_t z = (y & 1) ? (*p >> 4) : (*p & 0x0F);
         if (z) {
           FXColor color;
@@ -581,10 +512,10 @@ int main(int argc, char ** argv)
   simuInit();
 
 #if defined(EEPROM)
-  startEepromThread(argc >= 2 ? argv[1] : "eeprom.bin");
+  StartEepromThread(argc >= 2 ? argv[1] : "eeprom.bin");
 #endif
-  startAudioThread();
-  simuStart(false, argc >= 3 ? argv[2] : 0, argc >= 4 ? argv[3] : 0);
+  StartAudioThread();
+  StartSimu(false, argc >= 3 ? argv[2] : 0, argc >= 4 ? argv[3] : 0);
 
   return application.run();
 }

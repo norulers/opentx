@@ -124,20 +124,11 @@ bool redirectToSettingsDirectory(const std::string & path)
   */
   if (!simuSettingsDirectory.empty()) {
 #if defined(COLORLCD)
-    if (path == RADIO_MODELSLIST_PATH || path == RADIO_SETTINGS_PATH
-#if defined(SDCARD_YAML)
-        || path == RADIO_MODELSLIST_YAML_PATH || path == RADIO_SETTINGS_YAML_PATH
-#endif
-        ) {
+    if (path == RADIO_MODELSLIST_PATH || path == RADIO_SETTINGS_PATH) {
       return true;
     }
 #endif
-    if (startsWith(path, "/MODELS")
-        && (endsWith(path, MODELS_EXT)
-#if defined(SDCARD_YAML)
-            || endsWith(path, YAML_EXT)
-#endif
-            )) {
+    if (startsWith(path, "/MODELS") && endsWith(path, MODELS_EXT)) {
       return true;
     }
   }
@@ -467,7 +458,7 @@ FRESULT f_readdir (DIR * rep, FILINFO * fil)
   }
 #endif
 
-  memset(fil->fname, 0, FF_MAX_LFN);
+  memset(fil->fname, 0, _MAX_LFN);
   strcpy(fil->fname, ent->d_name);
   // TRACE_SIMPGMSPACE("f_readdir(): %s", fil->fname);
   return FR_OK;

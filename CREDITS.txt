@@ -1942,3 +1942,67 @@ Miklos Turcsin
 Edward Skerness
 Stefano Perinetti
 Toni Marchante
+Stuart Olson
+Peter Campbell
+Keith Wood
+Leo Duflou
+Michael Florey
+Gerhard Weixelbaumer
+Peter K Lehotsky
+Elisha Jones
+Joerg Sattler
+paul42
+Pascal Heg
+Bjorn Sorenssen
+Chris Payne
+Pascal Afflard
+Robert Boboryko
+Chris Whitehead
+David Bradley
+Ian Lever
+Phillip Barber
+Jan Bronee
+N Haasnoot
+Rick Smith
+Randall Grant
+Patrick Degouy
+Piotr Zdanowski
+David Gardner
+TMac FPV
+Bernard Thompson
+Mark Sutton
+Darren J Crane
+Michael Keyes
+Magnus Borg
+David Lorentzen
+Antony Smith
+Aleksandr Sarkisov
+Johannes Kuhne
+Kathleen Cilluffo
+David Hoffmann
+Alan Porter
+Arlé Mooldijk
+Tenbones
+Kim Bitsch Lauridsen
+Arthur Costerus
+Peter Harvey
+John Simpson
+Landy de los Santos
+Graham Ridley
+Schenk Peter
+Joseph Rex
+Richard Honeywell
+Roy Nixon
+Andrew Shewan
+David Bradley
+Alan Micklethwaite
+Susan Siegel
+Stephen Evans
+William Hallman
+Franck Michel
+László Gajcsi (monthly)
+Danny Koch
+Robert Martin
+Gavin Meerwald
+Frédéric Maix
+Frank Steinberg

@@ -316,7 +316,7 @@ void displayTimers()
         lcdDrawSizedText(TIMERS_X, y-7, timerData.name, LEN_TIMER_NAME, ZCHAR|SMLSIZE);
       }
       else {
-        lcdDrawTextAtIndex(TIMERS_X, y-7, STR_VTMRMODES, timerData.mode, SMLSIZE);
+        drawTimerMode(TIMERS_X, y-7, timerData.mode, SMLSIZE);
       }
       drawTimer(TIMERS_X, y, timerState.val, TIMEHOUR|MIDSIZE|LEFT, TIMEHOUR|MIDSIZE|LEFT);
       if (timerData.persistent) {
@@ -497,7 +497,7 @@ void menuMainView(event_t event)
   lcdDrawSizedText(PHASE_X, PHASE_Y, g_model.flightModeData[mode].name, sizeof(g_model.flightModeData[mode].name), ZCHAR|PHASE_FLAGS);
 
   // Model Name
-  drawModelName(MODELNAME_X, MODELNAME_Y, g_model.header.name, g_eeGeneral.currModel, BIGSIZE);
+  putsModelName(MODELNAME_X, MODELNAME_Y, g_model.header.name, g_eeGeneral.currModel, BIGSIZE);
 
   // Trims sliders
   displayTrims(mode);

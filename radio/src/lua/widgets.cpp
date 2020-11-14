@@ -182,7 +182,7 @@ class LuaTheme: public Theme
       exec(drawBackgroundFunction);
     }
 
-    void drawTopbarBackground(uint8_t icon) const override
+    virtual void drawTopbarBackground(uint8_t icon) const
     {
       exec(drawTopbarBackgroundFunction);
     }
@@ -319,7 +319,7 @@ class LuaWidgetFactory: public WidgetFactory
       lua_newtable(lsWidgets);
       int i = 0;
       for (const ZoneOption * option = options; option->name; option++, i++) {
-        l_pushtableint(option->name, persistentData->options[i].value.signedValue);
+        l_pushtableint(option->name, persistentData->options[i].signedValue);
       }
 
       if (lua_pcall(lsWidgets, 2, 1, 0) != 0) {
@@ -349,7 +349,7 @@ void LuaWidget::update()
   lua_newtable(lsWidgets);
   int i = 0;
   for (const ZoneOption * option = getOptions(); option->name; option++, i++) {
-    l_pushtableint(option->name, persistentData->options[i].value.signedValue);
+    l_pushtableint(option->name, persistentData->options[i].signedValue);
   }
 
   if (lua_pcall(lsWidgets, 2, 0, 0) != 0) {

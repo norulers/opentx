@@ -43,24 +43,14 @@
 #define LCD_FIRST_LAYER                0
 #define LCD_SECOND_LAYER               1
 
-uint8_t LCD_FIRST_FRAME_BUFFER[DISPLAY_BUFFER_SIZE * sizeof(pixel_t)] __SDRAM;
-uint8_t LCD_SECOND_FRAME_BUFFER[DISPLAY_BUFFER_SIZE * sizeof(pixel_t)] __SDRAM;
-uint8_t LCD_BACKUP_FRAME_BUFFER[DISPLAY_BUFFER_SIZE * sizeof(pixel_t)] __SDRAM;
-uint8_t currentLayer = LCD_FIRST_LAYER;
+uint8_t LCD_FIRST_FRAME_BUFFER[DISPLAY_BUFFER_SIZE * sizeof(display_t)] __SDRAM;
+uint8_t LCD_SECOND_FRAME_BUFFER[DISPLAY_BUFFER_SIZE * sizeof(display_t)] __SDRAM;
+uint8_t LCD_BACKUP_FRAME_BUFFER[DISPLAY_BUFFER_SIZE * sizeof(display_t)] __SDRAM;
 
-BitmapBuffer lcdBuffer1(BMP_RGB565, LCD_W, LCD_H, (uint16_t *)LCD_FIRST_FRAME_BUFFER);
-BitmapBuffer lcdBuffer2(BMP_RGB565, LCD_W, LCD_H, (uint16_t *)LCD_SECOND_FRAME_BUFFER);
-BitmapBuffer * lcd = &lcdBuffer1;
+uint32_t CurrentLayer = LCD_FIRST_LAYER;
 
-inline void LCD_NRST_LOW()
-{
-  LCD_GPIO_NRST->BSRRH = LCD_GPIO_PIN_NRST;
-}
-
-inline void LCD_NRST_HIGH()
-{
-  LCD_GPIO_NRST->BSRRL = LCD_GPIO_PIN_NRST;
-}
+#define NRST_LOW()   do { LCD_GPIO_NRST->BSRRH = LCD_GPIO_PIN_NRST; } while(0)
+#define NRST_HIGH()  do { LCD_GPIO_NRST->BSRRL = LCD_GPIO_PIN_NRST; } while(0)
 
 inline bool coordsWithinScreen(coord_t x, coord_t y, coord_t w, coord_t h)
 {
@@ -151,6 +141,7 @@ static void LCD_NRSTConfig(void)
   GPIO_Init(LCD_GPIO_NRST, &GPIO_InitStructure);
 }
 
+// TODO delay function
 static void delay3(uint32_t nCount)
 {
   uint32_t index = 0;
@@ -160,25 +151,25 @@ static void delay3(uint32_t nCount)
   }
 }
 
-static void lcdReset()
+static void lcd_reset(void)
 {
 #if defined(RADIO_T18)     // T18 screen has issues if NRST is ever brought low
   NRST_HIGH();
 #else
-  LCD_NRST_HIGH();
+  NRST_HIGH();
   delay3(1);
 
-  LCD_NRST_LOW(); //  RESET();
+  NRST_LOW(); //  RESET();
   delay3(20);
 
-  LCD_NRST_HIGH();
+  NRST_HIGH();
   delay3(30);
 #endif
 }
 
-void LCD_Init_LTDC()
+void LCD_Init_LTDC(void)
 {
-  LTDC_InitTypeDef LTDC_InitStruct;
+  LTDC_InitTypeDef       LTDC_InitStruct;
 
   /* Configure PLLSAI prescalers for LCD */
   /* PLLSAI_VCO Input = HSE_VALUE/PLL_M = 1 Mhz */
@@ -188,7 +179,7 @@ void LCD_Init_LTDC()
   //second pam is for audio
   //third pam is for LCD
   RCC_PLLSAIConfig(192, 6, 3);
-  RCC_LTDCCLKDivConfig(RCC_PLLSAIDivR_Div4);
+  RCC_LTDCCLKDivConfig(RCC_PLLSAIDivR_Div4);  //Modify by Fy
   /* Enable PLLSAI Clock */
   RCC_PLLSAICmd(ENABLE);
 
@@ -230,7 +221,7 @@ void LCD_Init_LTDC()
   /* Configure total height */
   LTDC_InitStruct.LTDC_TotalHeigh = LCD_H + VBP + VFP;
 
-  // init ltdc
+// init ltdc
   LTDC_Init(&LTDC_InitStruct);
 
 #if 0
@@ -253,6 +244,11 @@ void LCD_Init_LTDC()
 #endif
 }
 
+/**
+  * @brief  Initializes the LCD Layers.
+  * @param  None
+  * @retval None
+  */
 void LCD_LayerInit()
 {
   LTDC_Layer_InitTypeDef LTDC_Layer_InitStruct;
@@ -324,11 +320,17 @@ void LCD_LayerInit()
   LTDC_DitherCmd(ENABLE);
 }
 
+/*********************************output****************************************/
+/**
+  * @brief  Initializes the LCD.
+  * @param  None
+  * @retval None
+  */
 void LCD_Init(void)
 {
   /* Reset the LCD --------------------------------------------------------*/
   LCD_NRSTConfig();
-  lcdReset();
+  lcd_reset();
 
   /* Configure the LCD Control pins */
   LCD_AF_GPIOConfig();
@@ -336,15 +338,25 @@ void LCD_Init(void)
   LCD_Init_LTDC();
 }
 
-void LCD_SetLayer(uint32_t layer)
+BitmapBuffer lcdBuffer1(BMP_RGB565, LCD_W, LCD_H, (uint16_t *)LCD_FIRST_FRAME_BUFFER);
+BitmapBuffer lcdBuffer2(BMP_RGB565, LCD_W, LCD_H, (uint16_t *)LCD_SECOND_FRAME_BUFFER);
+BitmapBuffer * lcd = &lcdBuffer1;
+
+/**
+  * @brief  Sets the LCD Layer.
+  * @param  Layerx: specifies the Layer foreground or background.
+  * @retval None
+  */
+void LCD_SetLayer(uint32_t Layerx)
 {
-  if (layer == LCD_FIRST_LAYER) {
+  if (Layerx == LCD_FIRST_LAYER) {
     lcd = &lcdBuffer1;
+    CurrentLayer = LCD_FIRST_LAYER;
   }
   else {
     lcd = &lcdBuffer2;
+    CurrentLayer = LCD_SECOND_LAYER;
   }
-  currentLayer = layer;
 }
 
 /**
@@ -355,7 +367,7 @@ void LCD_SetLayer(uint32_t layer)
   */
 void LCD_SetTransparency(uint8_t transparency)
 {
-  if (currentLayer == LCD_FIRST_LAYER) {
+  if (CurrentLayer == LCD_FIRST_LAYER) {
     LTDC_LayerAlpha(LTDC_Layer1, transparency);
   }
   else {
@@ -364,7 +376,7 @@ void LCD_SetTransparency(uint8_t transparency)
   LTDC_ReloadConfig(LTDC_IMReload);
 }
 
-void lcdInit()
+void lcdInit(void)
 {
   /* Initialize the LCD */
   LCD_Init();
@@ -544,7 +556,7 @@ void DMABitmapConvert(uint16_t * dest, const uint8_t * src, uint16_t w, uint16_t
   while (DMA2D_GetFlagStatus(DMA2D_FLAG_TC) == RESET);
 }
 
-void lcdCopy(void * dest, void * src)
+void DMAcopy(void * src, void * dest, int len)
 {
   DMA2D_DeInit();
 
@@ -579,34 +591,21 @@ void lcdCopy(void * dest, void * src)
 
 void lcdStoreBackupBuffer()
 {
-  lcdCopy(LCD_BACKUP_FRAME_BUFFER, lcd->getData());
+  DMAcopy(lcd->getData(), LCD_BACKUP_FRAME_BUFFER, DISPLAY_BUFFER_SIZE * sizeof(display_t));
 }
 
 int lcdRestoreBackupBuffer()
 {
-  lcdCopy(lcd->getData(), LCD_BACKUP_FRAME_BUFFER);
+  DMAcopy(LCD_BACKUP_FRAME_BUFFER, lcd->getData(), DISPLAY_BUFFER_SIZE * sizeof(display_t));
   return 1;
 }
 
 void lcdRefresh()
 {
-  if (currentLayer == LCD_FIRST_LAYER) {
-    LTDC_LayerAlpha(LTDC_Layer1, 255);
-    LTDC_LayerAlpha(LTDC_Layer2, 0);
-  }
-  else {
-    LTDC_LayerAlpha(LTDC_Layer1, 0);
-    LTDC_LayerAlpha(LTDC_Layer2, 255);
-  }
-  LTDC_ReloadConfig(LTDC_IMReload);
-}
-
-void lcdNextLayer()
-{
-  if (currentLayer == LCD_FIRST_LAYER) {
+  LCD_SetTransparency(255);
+  if (CurrentLayer == LCD_FIRST_LAYER)
     LCD_SetLayer(LCD_SECOND_LAYER);
-  }
-  else {
+  else
     LCD_SetLayer(LCD_FIRST_LAYER);
-  }
+  LCD_SetTransparency(0);
 }

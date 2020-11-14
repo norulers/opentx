@@ -34,7 +34,7 @@ void runPopupCurvePreset(event_t event)
       // no break
 
     case EVT_KEY_BREAK(KEY_EXIT):
-      warningText = nullptr;
+      warningText = NULL;
       warningType = WARNING_TYPE_ASTERISK;
       break;
 
@@ -50,13 +50,13 @@ void runPopupCurvePreset(event_t event)
 
   if (warningResult) {
     warningResult = 0;
-    CurveHeader & crv = g_model.curves[s_currIdxSubMenu];
+    CurveInfo & crv = g_model.curves[s_currIdxSubMenu];
     int8_t * points = curveAddress(s_currIdxSubMenu);
     int k = 25 * reusableBuffer.curveEdit.preset;
     int dx = 2000 / (5+crv.points-1);
     for (uint8_t i=0; i<5+crv.points; i++) {
       int x = -1000 + i * dx;
-      points[i] = divRoundClosest(divRoundClosest(k * x, 100), 10);
+      points[i] = div_and_round(div_and_round(k * x, 100), 10);
     }
     if (crv.type == CURVE_TYPE_CUSTOM) {
       resetCustomCurveX(points, 5+crv.points);
@@ -71,13 +71,13 @@ void onCurveOneMenu(const char * result)
     POPUP_INPUT(STR_PRESET, runPopupCurvePreset);
   }
   else if (result == STR_MIRROR) {
-    CurveHeader & crv = g_model.curves[s_currIdxSubMenu];
+    CurveInfo & crv = g_model.curves[s_currIdxSubMenu];
     int8_t * points = curveAddress(s_currIdxSubMenu);
     for (int i=0; i<5+crv.points; i++)
       points[i] = -points[i];
   }
   else if (result == STR_CLEAR) {
-    CurveHeader & crv = g_model.curves[s_currIdxSubMenu];
+    CurveInfo & crv = g_model.curves[s_currIdxSubMenu];
     int8_t * points = curveAddress(s_currIdxSubMenu);
     for (int i=0; i<5+crv.points; i++)
       points[i] = 0;
@@ -89,7 +89,7 @@ void onCurveOneMenu(const char * result)
 
 void menuModelCurveOne(event_t event)
 {
-  CurveHeader & crv = g_model.curves[s_currIdxSubMenu];
+  CurveData & crv = g_model.curves[s_currIdxSubMenu];
   int8_t * points = curveAddress(s_currIdxSubMenu);
 
   drawStringWithIndex(PSIZE(TR_MENUCURVES)*FW+FW, 0, STR_CV, s_currIdxSubMenu+1);

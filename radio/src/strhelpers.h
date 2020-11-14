@@ -21,11 +21,9 @@
 #ifndef _STRHELPERS_H_
 #define _STRHELPERS_H_
 
-#include "opentx_types.h"
-
-char * strAppend(char * dest, const char * source, int len = 0);
-char * strAppendUnsigned(char * dest, uint32_t value, uint8_t digits = 0, uint8_t radix = 10);
-char * strAppendSigned(char * dest, int32_t value, uint8_t digits = 0, uint8_t radix = 10);
+char * strAppend(char * dest, const char * source, int len=0);
+char * strAppendUnsigned(char * dest, uint32_t value, uint8_t digits=0, uint8_t radix=10);
+char * strAppendSigned(char * dest, int32_t value, uint8_t digits=0, uint8_t radix=10);
 char * strSetCursor(char * dest, int position);
 char * strAppendDate(char * str, bool time=false);
 char * strAppendFilename(char * dest, const char * filename, const int size);
@@ -37,20 +35,9 @@ char * strAppendStringWithIndex(char * dest, const char * s, int idx);
 char * getTimerString(char * dest, int tme, uint8_t hours=0);
 char * getCurveString(char * dest, int idx);
 char * getGVarString(char * dest, int idx);
-char * getGVarString(int idx);
 char * getSwitchPositionName(char * dest, swsrc_t idx);
 char * getSwitchName(char * dest, swsrc_t idx);
 char * getSourceString(char * dest, mixsrc_t idx);
 #endif
-
-char * getFlightModeString(char * dest, int8_t idx);
-#define SWITCH_WARNING_STR_SIZE 3
-char * getSwitchWarningString(char * dest, swsrc_t idx);
-
-char * getSourceString(mixsrc_t idx);
-char * getSwitchPositionName(swsrc_t idx);
-char * getSwitchWarningString(swsrc_t idx);
-char * getCurveString(int idx);
-char * getTimerString(int32_t tme, uint8_t hours);
 
 #endif // _STRHELPERS_H_

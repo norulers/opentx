@@ -1,4 +1,4 @@
-macro(add_bitmaps_target targetname filter format args)
+macro(add_bitmaps_target targetname filter width format)
   set(bitmaps_files)
   file(GLOB bitmaps ${filter})
   foreach(bitmap ${bitmaps})
@@ -6,45 +6,19 @@ macro(add_bitmaps_target targetname filter format args)
     set(target ${target}.lbm)
     add_custom_command(
       OUTPUT ${target}
-      COMMAND ${PYTHON_EXECUTABLE} ${LIBOPENUI_TOOLS_DIR}/encode-bitmap.py --format ${format} ${args} ${bitmap} ${target}
-      DEPENDS ${bitmap} ${LIBOPENUI_TOOLS_DIR}/encode-bitmap.py
+      COMMAND ${PYTHON_EXECUTABLE} ${RADIO_DIRECTORY}/util/img2lbm.py ${bitmap} ${target} ${width} ${format} ${ARGN}
+      DEPENDS ${bitmap}
     )
     list(APPEND bitmaps_files ${target})
   endforeach()
   add_custom_target(${targetname} DEPENDS ${bitmaps_files})
-endmacro()
+endmacro(add_bitmaps_target)
 
-macro(add_fonts_target targetname filter)
-  set(fonts_files)
-  file(GLOB fonts ${filter})
-  foreach(font ${fonts})
-    get_filename_component(target ${font} NAME_WE)
-    set(target ${target}.lbm)
-    add_custom_command(
-      OUTPUT ${target}
-      COMMAND ${PYTHON_EXECUTABLE} ${TOOLS_DIR}/encode-font.py ${font} ${target}
-      DEPENDS ${font} ${TOOLS_DIR}/encode-font.py
-    )
-    list(APPEND fonts_files ${target})
-  endforeach()
-  add_custom_target(${targetname} DEPENDS ${fonts_files})
-endmacro()
-
-macro(add_truetype_font_target name size subset effect)
-  set(target font_${name})
-  if(${effect} STREQUAL "bold")
-    set(font ${FONT_BOLD})
-    set(cjk_font ${CJK_FONT_BOLD})
-  else()
-    set(font ${FONT})
-    set(cjk_font ${CJK_FONT})
-  endif()
-  add_custom_command(
-    OUTPUT ${target}.png ${target}.specs ${target}.lbm
-    COMMAND ${PYTHON_EXECUTABLE} ${TOOLS_DIR}/build-font-bitmap.py --subset ${subset} --size ${size} --font ${font} --cjk-font ${cjk_font} --output ${target}
-    COMMAND ${PYTHON_EXECUTABLE} ${LIBOPENUI_TOOLS_DIR}/encode-bitmap.py --format 8bits --rle --size-format 2 ${target}.png ${target}.lbm
-    DEPENDS ${TOOLS_DIR}/build-font-bitmap.py ${TOOLS_DIR}/charset.py ${LIBOPENUI_TOOLS_DIR}/encode-bitmap.py ${RADIO_SRC_DIR}/translations/cn.h.txt ${RADIO_SRC_DIR}/fonts/extra_${size}px.png
+macro(add_truetype_font_target radio name font size offset)
+  set(target ${RADIO_SRC_DIRECTORY}/fonts/${radio}/font_${name})
+  add_custom_target(ttf_${radio}_${name}
+    COMMAND ${PYTHON_EXECUTABLE} ${RADIO_DIRECTORY}/util/font2png.py ${font} ${size} ${offset} ${target}
+    WORKING_DIRECTORY ${RADIO_SRC_DIRECTORY}
   )
-  add_custom_target(truetype_font_${name} DEPENDS ${target}.png ${target}.specs)
-  set(truetype_fonts_targets ${truetype_fonts_targets} truetype_font_${name})
-endmacro()
+  set(ttf_${radio}_fonts_targets ${ttf_${radio}_fonts_targets} ttf_${radio}_${name})
+endmacro(add_truetype_font_target)

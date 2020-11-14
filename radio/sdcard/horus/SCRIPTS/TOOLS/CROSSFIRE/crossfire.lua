@@ -80,7 +80,7 @@ local function init()
   pageOffset = 0
 end
 
-NoCross = { 110, LCD_H - 28, "Waiting for Crossfire devices...", DEFAULT_COLOR + INVERS + BLINK }
+NoCross = { 110, LCD_H - 28, "Waiting for Crossfire devices...", TEXT_COLOR + INVERS + BLINK }
 
 -- Main
 local function run(event)
@@ -97,7 +97,7 @@ local function run(event)
 
   lcd.clear()
   lcd.drawFilledRectangle(0, 0, LCD_W, 30, TITLE_BGCOLOR)
-  lcd.drawText(1, 5,"CROSSFIRE SETUP", MENU_COLOR)
+  lcd.drawText(1, 5,"CROSSFIRE SETUP", MENU_TITLE_COLOR)
 
 
   if #devices == 0 then

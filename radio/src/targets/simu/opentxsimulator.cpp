@@ -126,9 +126,9 @@ void OpenTxSimulator::start(const char * filename, bool tests)
 
   QMutexLocker lckr(&m_mtxSimuMain);
   QMutexLocker slckr(&m_mtxSettings);
-  startEepromThread(filename);
-  startAudioThread(volumeGain);
-  simuStart(tests, simuSdDirectory.toLatin1().constData(), simuSettingsDirectory.toLatin1().constData());
+  StartEepromThread(filename);
+  StartAudioThread(volumeGain);
+  StartSimu(tests, simuSdDirectory.toLatin1().constData(), simuSettingsDirectory.toLatin1().constData());
 
   emit started();
   QTimer::singleShot(0, this, SLOT(run()));  // old style for Qt < 5.4
@@ -143,9 +143,9 @@ void OpenTxSimulator::stop()
   setStopRequested(true);
 
   QMutexLocker lckr(&m_mtxSimuMain);
-  simuStop();
-  stopAudioThread();
-  stopEepromThread();
+  StopSimu();
+  StopAudioThread();
+  StopEepromThread();
 
   emit stopped();
 }
@@ -284,13 +284,13 @@ void OpenTxSimulator::rotaryEncoderEvent(int steps)
     key = KEY_DOWN;
   else if (steps < 0)
     key = KEY_UP;
-#elif defined(HARDWARE_KEYS)
+#else
   if (steps > 0)
     key = KEY_MINUS;
   else if (steps < 0)
     key = KEY_PLUS;
-  else
 #endif
+  else
     // Should not happen but Clang complains that key is unset otherwise
     return;
 

@@ -21,7 +21,6 @@
 #ifndef _GUI_COMMON_H_
 #define _GUI_COMMON_H_
 
-#include <functional>
 #include "lcd.h"
 #include "keys.h"
 #include "telemetry/telemetry_sensors.h"
@@ -54,20 +53,7 @@ inline uint8_t MENU_FIRST_LINE_EDIT(const uint8_t * horTab, uint8_t horTabMax)
 }
 #endif
 
-#if defined(LIBOPENUI)
-typedef std::function<bool(int)> IsValueAvailable;
-#else
 typedef bool (*IsValueAvailable)(int);
-#endif
-
-enum SwitchContext
-{
-  LogicalSwitchesContext,
-  ModelCustomFunctionsContext,
-  GeneralCustomFunctionsContext,
-  TimersContext,
-  MixesContext
-};
 
 int circularIncDec(int current, int inc, int min, int max, IsValueAvailable isValueAvailable=nullptr);
 int getFirstAvailable(int min, int max, IsValueAvailable isValueAvailable);
@@ -84,7 +70,6 @@ bool isSourceAvailableInGlobalFunctions(int source);
 bool isSourceAvailableInCustomSwitches(int source);
 bool isSourceAvailableInResetSpecialFunction(int index);
 bool isSourceAvailableInGlobalResetSpecialFunction(int index);
-bool isSwitchAvailable(int swtch, SwitchContext context);
 bool isAux1ModeAvailable(int mode);
 bool isAux2ModeAvailable(int mode);
 bool isSwitchAvailableInLogicalSwitches(int swtch);
@@ -100,7 +85,6 @@ bool isInternalModuleAvailable(int moduleType);
 bool isRfProtocolAvailable(int protocol);
 bool isTelemetryProtocolAvailable(int protocol);
 bool isTrainerModeAvailable(int mode);
-bool isAssignableFunctionAvailable(int function, CustomFunctionData * functions);
 
 bool isSensorUnit(int sensor, uint8_t unit);
 bool isCellsSensor(int sensor);
@@ -109,7 +93,6 @@ bool isAltSensor(int sensor);
 bool isVoltsSensor(int sensor);
 bool isCurrentSensor(int sensor);
 bool isTelemetryFieldAvailable(int index);
-uint8_t getTelemetrySensorsCount();
 bool isTelemetryFieldComparisonAvailable(int index);
 bool isSensorAvailable(int sensor);
 bool isRssiSensorAvailable(int sensor);
@@ -122,17 +105,18 @@ bool confirmModelChange();
 bool isSwitch2POSWarningStateAvailable(int state);
 #endif
 
-#if defined(LIBOPENUI)
-#define IS_INSTANT_TRIM_ALLOWED()     false
-#elif defined(GUI)
+#if defined(GUI)
 #define IS_INSTANT_TRIM_ALLOWED()      (IS_MAIN_VIEW_DISPLAYED() || IS_TELEMETRY_VIEW_DISPLAYED() || IS_OTHER_VIEW_DISPLAYED())
 #else
 #define IS_INSTANT_TRIM_ALLOWED()      true
 #endif
 
+#if defined(FLIGHT_MODES)
+void drawFlightMode(coord_t x, coord_t y, int8_t idx, LcdFlags att=0);
+#endif
+
 swsrc_t checkIncDecMovedSwitch(swsrc_t val);
 
-// TODO move this to stdlcd/draw_functions.h ?
 void drawCurveRef(coord_t x, coord_t y, CurveRef & curve, LcdFlags flags=0);
 void drawDate(coord_t x, coord_t y, TelemetryItem & telemetryItem, LcdFlags flags=0);
 void drawTelemScreenDate(coord_t x, coord_t y, source_t sensor, LcdFlags flags=0);
@@ -144,9 +128,18 @@ void drawSourceValue(coord_t x, coord_t y, source_t channel, LcdFlags flags=0);
 
 int convertMultiToOtx(int type);
 
-// model_setup Defines that are used in all uis in the same way
+#if defined(COLORLCD)
+void drawStringWithIndex(coord_t x, coord_t y, const char * str, int idx, LcdFlags flags=0, const char * prefix=nullptr, const char * suffix=nullptr);
+uint8_t editCheckBox(uint8_t value, coord_t x, coord_t y, LcdFlags flags, event_t event);
+swsrc_t editSwitch(coord_t x, coord_t y, swsrc_t value, LcdFlags flags, event_t event);
+void drawFatalErrorScreen(const char * message);
+void runFatalErrorScreen(const char * message);
+#endif
+
 #define IF_INTERNAL_MODULE_ON(x)                  (IS_INTERNAL_MODULE_ENABLED() ? (uint8_t)(x) : HIDDEN_ROW)
 #define IF_MODULE_ON(moduleIndex, x)              (IS_MODULE_ENABLED(moduleIndex) ? (uint8_t)(x) : HIDDEN_ROW)
+
+// model_setup Defines that are used in all uis in the same way
 
 inline uint8_t MODULE_BIND_ROWS(int moduleIdx)
 {
@@ -303,7 +296,7 @@ inline uint8_t MULTIMODULE_HASOPTIONS(uint8_t moduleIdx)
 #endif
 
 #if defined(AFHDS3)
-#define AFHDS3_PROTOCOL_ROW(moduleIdx)          isModuleAFHDS3(moduleIdx) ? TITLE_ROW : HIDDEN_ROW,
+#define AFHDS3_PROTOCOL_ROW(moduleIdx)          isModuleAFHDS3(moduleIdx) ? 0 : HIDDEN_ROW,
 #define AFHDS3_MODE_ROWS(moduleIdx)             isModuleAFHDS3(moduleIdx) ? TITLE_ROW : HIDDEN_ROW, isModuleAFHDS3(moduleIdx) ? TITLE_ROW : HIDDEN_ROW, isModuleAFHDS3(moduleIdx) ? TITLE_ROW : HIDDEN_ROW,
 #define AFHDS3_MODULE_ROWS(moduleIdx)           isModuleAFHDS3(moduleIdx) ? (uint8_t) 0 : HIDDEN_ROW, isModuleAFHDS3(moduleIdx) ? (uint8_t) TITLE_ROW : HIDDEN_ROW,
 #else

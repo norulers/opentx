@@ -552,7 +552,7 @@ inline bool isPWM(uint8_t mode)
   return mode < 2;
 }
 
-RUN_POWER PulsesData::getMaxRunPower() const
+RUN_POWER PulsesData::getMaxRunPower()
 {
   if (powerSource == MODULE_POWER_SOURCE::EXTERNAL) {
     return RUN_POWER::PLUS_33dBm;
@@ -561,7 +561,7 @@ RUN_POWER PulsesData::getMaxRunPower() const
   return RUN_POWER::PLUS_27dbm;
 }
 
-RUN_POWER PulsesData::actualRunPower() const
+RUN_POWER PulsesData::actualRunPower()
 {
   uint8_t actualRfPower = cfg.config.runPower;
   if (getMaxRunPower() < actualRfPower) {
@@ -570,7 +570,7 @@ RUN_POWER PulsesData::actualRunPower() const
   return (RUN_POWER) actualRfPower;
 }
 
-RUN_POWER PulsesData::getRunPower() const
+RUN_POWER PulsesData::getRunPower()
 {
   RUN_POWER targetPower = (RUN_POWER) moduleData->afhds3.runPower;
   if (getMaxRunPower() < targetPower) {

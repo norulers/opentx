@@ -5,33 +5,21 @@ option(PXX2 "PXX2 protocol support" OFF)
 option(AFHDS3 "AFHDS3 TX Module" ON)
 option(MULTIMODULE "DIY Multiprotocol TX Module (https://github.com/pascallanger/DIY-Multiprotocol-TX-Module)" ON)
 option(GHOST "Ghost TX Module" ON)
+option(HARDWARE_EXTERNAL_ACCESS_MOD "Support for R9M 2019 hardware mod" OFF)
 
 set(PWR_BUTTON "PRESS" CACHE STRING "Pwr button type (PRESS/SWITCH)")
 set(CPU_TYPE STM32F4)
 set(HSE_VALUE 12000000)
 set(SDCARD YES)
-set(STORAGE SDCARD)
-set(STORAGE_FORMAT BIN)
+set(EEPROM SDCARD)
 set(HAPTIC YES)
-set(GUI_DIR colorlcd)
-set(BITMAPS_DIR 480x272)
+set(GUI_DIR 480x272)
 set(NAVIGATION_TYPE horus)
 set(TARGET_DIR horus)
 set(LINKER_SCRIPT targets/horus/stm32f4_flash.ld)
 set(RTC_BACKUP_RAM YES)
 set(PPM_LIMITS_SYMETRICAL YES)
 set(USB_SERIAL ON CACHE BOOL "Enable USB serial (CDC)")
-
-if(BOOTLOADER)
-  set(LINKER_SCRIPT targets/horus/stm32f4_flash_bootloader.ld)
-else()
-  set(LINKER_SCRIPT targets/horus/stm32f4_flash.ld)
-endif()
-
-option(YAML_STORAGE "Enable YAML storage" NO)
-if(YAML_STORAGE)
-  set(STORAGE_FORMAT YAML)
-endif()
 
 # for size report script
 set(CPU_TYPE_FULL STM32F429xI)
@@ -40,8 +28,6 @@ set(SIZE_TARGET_MEM_DEFINE "MEM_SIZE_SDRAM2=8192")
 if(SPLASH STREQUAL OFF)
   message(FATAL_ERROR "Option SPLASH=OFF not supported on Horus")
 endif()
-
-add_definitions(-DPCBFRSKY)
 
 if (PCB STREQUAL X10)
   set(PCBREV "STD" CACHE STRING "PCB Revision")
@@ -86,7 +72,7 @@ if (PCB STREQUAL X10)
     set(SBUS_TRAINER ON)
     set(AUX_SERIAL ON)
     if (NOT BLUETOOTH AND NOT INTERNAL_GPS)
-      set(AUX2_SERIAL OFF) # todo ON
+      set(AUX2_SERIAL ON)
     endif()
     set(INTERNAL_GPS_BAUDRATE "9600" CACHE STRING "Baud rate for internal GPS")
   elseif (PCBREV STREQUAL T18)
@@ -135,16 +121,14 @@ add_definitions(-DPCBREV_${PCBREV})
 set(RADIO_DEPENDENCIES
   ${RADIO_DEPENDENCIES}
   ${BITMAPS_TARGET}
-  truetype_fonts
   )
 
 set(FIRMWARE_DEPENDENCIES datacopy)
 
-add_definitions(-DPCBHORUS -DSTM32F429_439xx -DSDRAM -DCOLORLCD -DHARDWARE_KEYS)
+add_definitions(-DPCBHORUS -DSTM32F429_439xx -DSDRAM -DCOLORLCD)
 add_definitions(-DEEPROM_VARIANT=0 -DAUDIO -DVOICE -DRTCLOCK)
 add_definitions(-DGPS_USART_BAUDRATE=${INTERNAL_GPS_BAUDRATE})
 add_definitions(-DPWR_BUTTON_${PWR_BUTTON})
-add_definitions(-DHARDWARE_TRAINER_JACK)
 
 if(DEFAULT_THEME)
   add_definitions(-DDEFAULT_THEME_${DEFAULT_THEME})
@@ -154,6 +138,12 @@ endif()
 
 if(NOT UNEXPECTED_SHUTDOWN)
   add_definitions(-DNO_UNEXPECTED_SHUTDOWN)
+endif()
+
+if(HARDWARE_EXTERNAL_ACCESS_MOD)
+  set(PXX2 ON)
+  set(AUX_SERIAL OFF)
+  add_definitions(-DHARDWARE_EXTERNAL_ACCESS_MOD)
 endif()
 
 if(INTERNAL_MODULE_PXX1)
@@ -176,6 +166,51 @@ if(INTERNAL_MODULE_MULTI)
   add_definitions(-DINTERNAL_MODULE_MULTI)
 endif()
 
+include_directories(${RADIO_SRC_DIRECTORY}/fonts/480x272 gui/${GUI_DIR} gui/${GUI_DIR}/layouts)
+
+file(GLOB THEMES_SRC RELATIVE ${RADIO_SRC_DIRECTORY}/gui/480x272 ${RADIO_SRC_DIRECTORY}/gui/480x272/themes/*.cpp)
+file(GLOB LAYOUTS_SRC RELATIVE ${RADIO_SRC_DIRECTORY}/gui/480x272 ${RADIO_SRC_DIRECTORY}/gui/480x272/layouts/*.cpp)
+file(GLOB WIDGETS_SRC RELATIVE ${RADIO_SRC_DIRECTORY}/gui/480x272 ${RADIO_SRC_DIRECTORY}/gui/480x272/widgets/*.cpp)
+set(GUI_SRC
+  ${GUI_SRC}
+  bitmapbuffer.cpp
+  curves.cpp
+  bitmaps.cpp
+  radio_sdmanager.cpp
+  radio_hardware.cpp
+  radio_diagkeys.cpp
+  radio_diaganas.cpp
+  model_inputs.cpp
+  model_mixes.cpp
+  model_curves.cpp
+  view_channels.cpp
+  view_logical_switches.cpp
+  view_about.cpp
+  view_text.cpp
+  screens_setup.cpp
+  theme.cpp
+  topbar.cpp
+  layout.cpp
+  widget.cpp
+  menus.cpp
+  ${THEMES_SRC}
+  ${LAYOUTS_SRC}
+  ${WIDGETS_SRC}
+  rle.cpp
+  )
+
+if(PXX2 OR LUA OR MULTIMODULE)
+  set(GUI_SRC ${GUI_SRC} radio_tools.cpp)
+endif()
+
+if(PXX2 OR MULTIMODULE)
+  set(GUI_SRC ${GUI_SRC} radio_spectrum_analyser.cpp)
+endif()
+
+if(PXX2)
+  set(GUI_SRC ${GUI_SRC} radio_power_meter.cpp)
+endif()
+
 if(DISK_CACHE)
   set(SRC ${SRC} disk_cache.cpp)
   add_definitions(-DDISK_CACHE)
@@ -195,13 +230,16 @@ set(TARGET_SRC
   led_driver.cpp
   extmodule_driver.cpp
   trainer_driver.cpp
+  ../common/arm/stm32/heartbeat_driver.cpp
   ../common/arm/stm32/timers_driver.cpp
   ../common/arm/stm32/intmodule_serial_driver.cpp
   ../common/arm/stm32/rotary_encoder_driver.cpp
   )
 
 if(HARDWARE_TOUCH)
-  set(TOUCH_DRIVER tp_gt911.cpp)
+  set(TARGET_SRC ${TARGET_SRC}
+    tp_gt911.cpp
+    )
   add_definitions(-DHARDWARE_TOUCH)
 endif()
 
@@ -214,7 +252,6 @@ if(BLUETOOTH)
   add_definitions(-DBLUETOOTH)
   set(TARGET_SRC ${TARGET_SRC} ../common/arm/stm32/bluetooth_driver.cpp)
   set(SRC ${SRC} bluetooth.cpp)
-  add_definitions(-DHARDWARE_TRAINER_BLUETOOTH)
 endif()
 
 if (AUX_SERIAL)
@@ -239,22 +276,14 @@ set(FIRMWARE_TARGET_SRC
   ${FIRMWARE_TARGET_SRC}
   ${LCD_DRIVER}
   ${AUX_SERIAL_DRIVER}
-  ${TOUCH_DRIVER}
   board.cpp
   backlight_driver.cpp
   ../common/arm/stm32/pwr_driver.cpp
   sdram_driver.c
   startup_stm32f42_43xxx.s
-  ../common/arm/stm32/heartbeat_driver.cpp
   ../common/arm/stm32/sdio_sd.c
+  ../common/arm/loadboot.cpp
   )
-
-if(BOOTLOADER)
-  set(FIRMWARE_TARGET_SRC
-    ${FIRMWARE_TARGET_SRC}
-    ../common/arm/loadboot.cpp
-    )
-endif()
 
 set(SRC
   ${SRC}
@@ -309,7 +338,7 @@ if(PYTHONINTERP_FOUND)
   add_custom_command(
     OUTPUT ${PROJECT_BINARY_DIR}/radio/src/datacopy.cpp
     WORKING_DIRECTORY ${RADIO_DIRECTORY}/src
-    COMMAND ${PYTHON_EXECUTABLE} ${RADIO_DIRECTORY}/util/generate_datacopy.py datastructs.h -DPCBHORUS -DPCBX10 -DCPUARM -DSTM32F4 -DSTM32F429_439xx -DCOLORLCD -DBACKUP -DSIMU -I. -Igui/colorlcd -Itargets/horus -Itargets/common/arm/stm32 -I${THIRDPARTY_DIR} -I${THIRDPARTY_DIR}/libopenui/src -I${THIRDPARTY_DIR}/STM32F4xx_DSP_StdPeriph_Lib_V1.8.0/Libraries/STM32F4xx_StdPeriph_Driver/inc -I${THIRDPARTY_DIR}/STM32F4xx_DSP_StdPeriph_Lib_V1.8.0/Libraries/CMSIS/Device/ST/STM32F4xx/Include -I${THIRDPARTY_DIR}/STM32F4xx_DSP_StdPeriph_Lib_V1.8.0/Libraries/CMSIS/Include ${arm_gcc_include_path} > ${PROJECT_BINARY_DIR}/radio/src/datacopy.cpp
+    COMMAND ${PYTHON_EXECUTABLE} ${RADIO_DIRECTORY}/util/generate_datacopy.py datastructs.h -DPCBHORUS -DPCBX10 -DCPUARM -DSTM32F4 -DSTM32F429_439xx -DCOLORLCD -DBACKUP -DSIMU -I. -Itargets/horus -Itargets/common/arm/stm32 -I${THIRDPARTY_DIR} -I${THIRDPARTY_DIR}/STM32F4xx_DSP_StdPeriph_Lib_V1.4.0/Libraries/CMSIS/Device/ST/STM32F4xx/Include ${arm_gcc_include_path} > ${PROJECT_BINARY_DIR}/radio/src/datacopy.cpp
     DEPENDS ${RADIO_DIRECTORY}/src/datastructs.h ${RADIO_DIRECTORY}/util/generate_datacopy.py
     )
   add_custom_target(datacopy

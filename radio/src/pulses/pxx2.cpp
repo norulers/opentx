@@ -21,7 +21,6 @@
 #include "opentx.h"
 #include "pulses/pxx2.h"
 #include "io/frsky_firmware_update.h"
-#include "libopenui/src/libopenui_file.h"
 
 uint8_t Pxx2Pulses::addFlag0(uint8_t module)
 {
@@ -172,10 +171,10 @@ void Pxx2Pulses::setupRegisterFrame(uint8_t module)
   if (reusableBuffer.moduleSetup.pxx2.registerStep == REGISTER_RX_NAME_SELECTED) {
     Pxx2Transport::addByte(0x01);
     for (uint8_t i=0; i<PXX2_LEN_RX_NAME; i++) {
-      Pxx2Transport::addByte(reusableBuffer.moduleSetup.pxx2.registerRxName[i]);
+      Pxx2Transport::addByte(zchar2char(reusableBuffer.moduleSetup.pxx2.registerRxName[i]));
     }
     for (uint8_t i=0; i<PXX2_LEN_REGISTRATION_ID; i++) {
-      Pxx2Transport::addByte(g_model.modelRegistrationID[i]);
+      Pxx2Transport::addByte(zchar2char(g_model.modelRegistrationID[i]));
     }
     Pxx2Transport::addByte(reusableBuffer.moduleSetup.pxx2.registerLoopIndex);
   }
@@ -260,11 +259,9 @@ void Pxx2Pulses::setupAccessBindFrame(uint8_t module)
 
   if (destination->step == BIND_WAIT) {
     if (get_tmr10ms() > destination->timeout) {
-      destination->step = BIND_OK;
       moduleState[module].mode = MODULE_MODE_NORMAL;
-#if !defined(COLORLCD)
+      destination->step = BIND_OK;
       POPUP_INFORMATION(STR_BIND_OK); // TODO rather use the new callback
-#endif
     }
     return;
   }
@@ -293,7 +290,7 @@ void Pxx2Pulses::setupAccessBindFrame(uint8_t module)
   else {
     Pxx2Transport::addByte(0x00); // DATA0
     for (uint8_t i=0; i<PXX2_LEN_REGISTRATION_ID; i++) {
-      Pxx2Transport::addByte(g_model.modelRegistrationID[i]);
+      Pxx2Transport::addByte(zchar2char(g_model.modelRegistrationID[i]));
     }
   }
 }
@@ -490,7 +487,7 @@ const char * Pxx2OtaUpdate::nextStep(uint8_t step, const char * rxName, uint32_t
   }
 }
 
-const char * Pxx2OtaUpdate::doFlashFirmware(const char * filename, ProgressHandler progressHandler)
+const char * Pxx2OtaUpdate::doFlashFirmware(const char * filename)
 {
   FIL file;
   uint8_t buffer[32];
@@ -522,7 +519,7 @@ const char * Pxx2OtaUpdate::doFlashFirmware(const char * filename, ProgressHandl
 
   uint32_t done = 0;
   while (1) {
-    progressHandler(getBasename(filename), STR_OTA_UPDATE, done, size);
+    drawProgressScreen(getBasename(filename), STR_OTA_UPDATE, done, size);
     if (f_read(&file, buffer, sizeof(buffer), &count) != FR_OK) {
       f_close(&file);
       return "Read file failed";
@@ -544,7 +541,7 @@ const char * Pxx2OtaUpdate::doFlashFirmware(const char * filename, ProgressHandl
   return nextStep(OTA_UPDATE_EOF, nullptr, done, nullptr);
 }
 
-void Pxx2OtaUpdate::flashFirmware(const char * filename, ProgressHandler progressHandler)
+void Pxx2OtaUpdate::flashFirmware(const char * filename)
 {
   pausePulses();
 
@@ -552,14 +549,15 @@ void Pxx2OtaUpdate::flashFirmware(const char * filename, ProgressHandler progres
   RTOS_WAIT_MS(100);
 
   moduleState[module].mode = MODULE_MODE_OTA_UPDATE;
-  const char * result = doFlashFirmware(filename, progressHandler);
+  const char * result = doFlashFirmware(filename);
   moduleState[module].mode = MODULE_MODE_NORMAL;
 
   AUDIO_PLAY(AU_SPECIAL_SOUND_BEEP1 );
   BACKLIGHT_ENABLE();
 
   if (result) {
-    POPUP_WARNING(STR_FIRMWARE_UPDATE_ERROR, result);
+    POPUP_WARNING(STR_FIRMWARE_UPDATE_ERROR);
+    SET_WARNING_INFO(result, strlen(result), 0);
   }
   else {
     POPUP_INFORMATION(STR_FIRMWARE_UPDATE_SUCCESS);

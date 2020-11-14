@@ -28,8 +28,6 @@
 #include "audio_driver.h"
 #include "../opentx_constants.h"
 
-#define CPU_FREQ                       36000000
-
 extern uint16_t ResetReason;
 
 #define BOOTLOADER_SIZE                0x8000
@@ -214,11 +212,9 @@ void calcConsumption();
 
 // Trainer driver
 #define SLAVE_MODE()                   (pwrCheck() == e_power_trainer)
+#define TRAINER_CONNECTED()            (PIOA->PIO_PDSR & PIO_PA8)
 void init_trainer_capture();
 void stop_trainer_capture();
-#define TRAINER_DETECT_GPIO             PIOA
-#define TRAINER_DETECT_GPIO_PIN         PIO_PA8
-#define TRAINER_CONNECTED()            (TRAINER_DETECT_GPIO->PIO_PDSR & TRAINER_DETECT_GPIO_PIN)
 
 // Write Flash driver
 #define FLASH_PAGESIZE                 256
@@ -278,6 +274,7 @@ extern "C" {
 #define isBacklightEnabled()           (PWM->PWM_CH_NUM[0].PWM_CDTY != 100)
 #define BACKLIGHT_ENABLE()             backlightEnable()
 #define BACKLIGHT_DISABLE()            backlightDisable()
+#define BACKLIGHT_FORCED_ON            101
 
 // ADC driver
 #define NUM_POTS                       3

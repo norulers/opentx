@@ -23,11 +23,7 @@
 
 #include <stdint.h>
 #include <list>
-
 #include "sdcard.h"
-#if !defined(SDCARD_YAML)
-#include "sdcard_raw.h"
-#endif
 
 #define MODELCELL_WIDTH                172
 #define MODELCELL_HEIGHT               59
@@ -43,30 +39,30 @@ struct SimpleModuleData
 
 class ModelCell
 {
-  public:
-    char modelFilename[LEN_MODEL_FILENAME + 1];
-    char modelName[LEN_MODEL_NAME + 1] = {};
+public:
+  char modelFilename[LEN_MODEL_FILENAME + 1];
+  char modelName[LEN_MODEL_NAME + 1];
+  BitmapBuffer * buffer;
 
-    bool             valid_rfData;
-    uint8_t          modelId[NUM_MODULES];
-    SimpleModuleData moduleData[NUM_MODULES];
+  bool             valid_rfData;
+  uint8_t          modelId[NUM_MODULES];
+  SimpleModuleData moduleData[NUM_MODULES];
 
-    explicit ModelCell(const char * name);
-    explicit ModelCell(const char * name, uint8_t len);
-    ~ModelCell();
+  ModelCell(const char * name);
+  ~ModelCell();
 
-    void save(FIL * file);
+  void save(FIL * file);
 
-    void setModelName(char * name);
-    void setModelName(char* name, uint8_t len);
-    void setRfData(ModelData * model);
+  void setModelName(char * name);
+  void setRfData(ModelData * model);
 
-    void setModelId(uint8_t moduleIdx, uint8_t id);
-    void setRfModuleData(uint8_t moduleIdx, ModuleData* modData);
+  void setModelId(uint8_t moduleIdx, uint8_t id);
+  void setRfModuleData(uint8_t moduleIdx, ModuleData* modData);
 
-    bool  fetchRfData();
-  //  void  loadBitmap();
-  //  void  resetBuffer();
+  bool  fetchRfData();
+  void  loadBitmap();
+  const BitmapBuffer * getBuffer();
+  void  resetBuffer();
 };
 
 class ModelsCategory: public std::list<ModelCell *>
@@ -74,14 +70,12 @@ class ModelsCategory: public std::list<ModelCell *>
 public:
   char name[LEN_MODEL_FILENAME + 1];
 
-  explicit ModelsCategory(const char * name);
-  explicit ModelsCategory(const char * name, uint8_t len);
+  ModelsCategory(const char * name);
   ~ModelsCategory();
 
   ModelCell * addModel(const char * name);
   void removeModel(ModelCell * model);
   void moveModel(ModelCell * model, int8_t step);
-
   void save(FIL * file);
 };
 
@@ -109,38 +103,26 @@ public:
     return categories;
   }
   
-  std::list<ModelsCategory *>& getCategories()
-  {
-    return categories;
-  }
-
   void setCurrentCategory(ModelsCategory * cat);
-
   ModelsCategory * getCurrentCategory() const
   {
     return currentCategory;
   }
 
   void setCurrentModel(ModelCell * cell);
-
   ModelCell * getCurrentModel() const
   {
     return currentModel;
-  }
-
-  void incModelsCount() {
-    modelsCount++;
   }
 
   unsigned int getModelsCount() const
   {
     return modelsCount;
   }
-
+  
   bool readNextLine(char * line, int maxlen);
 
-  ModelsCategory * createCategory(bool save=true);
-  ModelsCategory * createCategory(const char * name, bool save=true);
+  ModelsCategory * createCategory();
   void removeCategory(ModelsCategory * category);
 
   ModelCell * addModel(ModelsCategory * category, const char * name);

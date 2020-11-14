@@ -21,8 +21,9 @@
 #ifndef _LCD_H_
 #define _LCD_H_
 
+typedef int coord_t;
 typedef uint32_t LcdFlags;
-typedef uint8_t pixel_t;
+typedef uint8_t display_t;
 
 #define BOX_WIDTH                      31
 #define CENTER                         "\015"
@@ -86,11 +87,11 @@ typedef uint8_t pixel_t;
 #define DISPLAY_BUFFER_SIZE            (LCD_W*LCD_H*4/8)
 
 #if (defined(PCBX9E) || defined(PCBX9DP)) && defined(LCD_DUAL_BUFFER)
-  extern pixel_t displayBuf1[DISPLAY_BUFFER_SIZE];
-  extern pixel_t displayBuf2[DISPLAY_BUFFER_SIZE];
-  extern pixel_t * displayBuf;
+  extern display_t displayBuf1[DISPLAY_BUFFER_SIZE];
+  extern display_t displayBuf2[DISPLAY_BUFFER_SIZE];
+  extern display_t * displayBuf;
 #else
-  extern pixel_t displayBuf[DISPLAY_BUFFER_SIZE];
+  extern display_t displayBuf[DISPLAY_BUFFER_SIZE];
 #endif
 
 extern coord_t lcdLastRightPos;
@@ -100,12 +101,12 @@ extern coord_t lcdNextPos;
 #define DISPLAY_END                    (displayBuf + DISPLAY_BUFFER_SIZE)
 #define ASSERT_IN_DISPLAY(p)           assert((p) >= displayBuf && (p) < DISPLAY_END)
 
-void lcdDrawChar(coord_t x, coord_t y, char c);
-void lcdDrawChar(coord_t x, coord_t y, char c, LcdFlags mode);
+void lcdDrawChar(coord_t x, coord_t y, const unsigned char c);
+void lcdDrawChar(coord_t x, coord_t y, const unsigned char c, LcdFlags mode);
 void lcdDrawCenteredText(coord_t y, const char * s, LcdFlags flags = 0);
 void lcdDrawText(coord_t x, coord_t y, const char * s, LcdFlags mode);
 void lcdDrawTextAtIndex(coord_t x, coord_t y, const char * s,uint8_t idx, LcdFlags mode);
-void lcdDrawSizedText(coord_t x, coord_t y, const char * s, unsigned char len, LcdFlags mode);
+void lcdDrawSizedText(coord_t x, coord_t y, const char * s,unsigned char len, LcdFlags mode);
 void lcdDrawText(coord_t x, coord_t y, const char * s);
 void lcdDrawSizedText(coord_t x, coord_t y, const char * s, unsigned char len);
 void lcdDrawTextAlignedLeft(coord_t y, const char * s);
@@ -114,9 +115,9 @@ void lcdDrawHexNumber(coord_t x, coord_t y, uint32_t val, LcdFlags mode=0);
 void lcdDrawNumber(coord_t x, coord_t y, int32_t val, LcdFlags mode, uint8_t len);
 void lcdDrawNumber(coord_t x, coord_t y, int32_t val, LcdFlags mode=0);
 
-void drawModelName(coord_t x, coord_t y, char *name, uint8_t id, LcdFlags att);
+void putsModelName(coord_t x, coord_t y, char *name, uint8_t id, LcdFlags att);
 void drawSwitch(coord_t x, coord_t y, int32_t swtch, LcdFlags att=0, bool autoBold = true);
-void drawStickName(coord_t x, coord_t y, uint8_t idx, LcdFlags att=0);
+void putsStickName(coord_t x, coord_t y, uint8_t idx, LcdFlags att=0);
 void drawSource(coord_t x, coord_t y, uint32_t idx, LcdFlags att=0);
 void drawCurveName(coord_t x, coord_t y, int8_t idx, LcdFlags att=0);
 void drawTimerMode(coord_t x, coord_t y, swsrc_t mode, LcdFlags att=0);
@@ -174,13 +175,13 @@ uint8_t * lcdLoadBitmap(uint8_t * dest, const char * filename, uint16_t width, u
   #define SLOW_BLINK_ON_PHASE   (g_blinkTmr10ms & (1 << 7))
 #endif
 
-inline pixel_t getPixel(unsigned int x, unsigned int y)
+inline display_t getPixel(unsigned int x, unsigned int y)
 {
   if (x>=LCD_W || y>=LCD_H) {
     return 0;
   }
 
-  pixel_t * p = &displayBuf[y / 2 * LCD_W + x];
+  display_t * p = &displayBuf[y / 2 * LCD_W + x];
   return (y & 1) ? (*p >> 4) : (*p & 0x0F);
 }
 

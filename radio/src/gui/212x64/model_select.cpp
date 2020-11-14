@@ -20,6 +20,7 @@
 
 #include "opentx.h"
 
+#define MODELSIZE_POS_X 170
 #define MODELSEL_W 133
 
 void onModelSelectMenu(const char * result)
@@ -267,7 +268,7 @@ void menuModelSelect(event_t event)
     k %= MAX_MODELS;
 
     if (eeModelExists(k)) {
-      drawModelName(4*FW, y, modelHeaders[k].name, k, 0);
+      putsModelName(4*FW, y, modelHeaders[k].name, k, 0);
       lcdDrawNumber(20*FW, y, eeModelSize(k), RIGHT);
       if (k==g_eeGeneral.currModel && (s_copyMode!=COPY_MODE || s_copySrcRow<0 || i+menuVerticalOffset!=(vertpos_t)sub))
         lcdDrawChar(1, y, '*');

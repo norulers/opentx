@@ -514,9 +514,9 @@ Return input data for given input and line number
  * `curveType` (number) curve type (function, expo, custom curve)
  * `curveValue` (number) curve index
  * `carryTrim` (boolean) input trims applied
- * 'flightModes' (table) table of enabled flightModes {0,2,7} means that the input is enabled for FM0, FM2 and FM7
+ * 'flightModes' (number) bit-mask of active flight modes
 
-@status current Introduced in 2.0.0, curveType/curveValue/carryTrim added in 2.3, flightModes, inputName added 2.3.10
+@status current Introduced in 2.0.0, curveType/curveValue/carryTrim added in 2.3, inputName added 2.3.10, flighmode reworked in 2.3.11
 */
 static int luaModelGetInput(lua_State *L)
 {
@@ -536,16 +536,7 @@ static int luaModelGetInput(lua_State *L)
     lua_pushtableinteger(L, "curveType", expo->curve.type);
     lua_pushtableinteger(L, "curveValue", expo->curve.value);
     lua_pushtableinteger(L, "carryTrim", expo->carryTrim);
-    lua_pushstring(L, "flightModes");
-    lua_newtable(L);
-    for (int i = 0, cnt = 0; i < MAX_FLIGHT_MODES; i++) {
-      if (!(expo->flightModes & (1 << i))) {
-        lua_pushinteger(L, cnt++);
-        lua_pushinteger(L, i);
-        lua_settable(L, -3);
-      }
-    }
-    lua_settable(L, -3);
+    lua_pushtableinteger(L, "flightModes", expo->flightModes);
   }
   else {
     lua_pushnil(L);
@@ -613,14 +604,7 @@ static int luaModelInsertInput(lua_State *L)
         expo->carryTrim = lua_toboolean(L, -1);
       }
       else if (!strcmp(key, "flightModes")) {
-        luaL_checktype(L, -1, LUA_TTABLE);
-        int flighModes = 0x1FF;
-        for (lua_pushnil(L); lua_next(L, -2); lua_pop(L, 1)) {
-          uint16_t val = luaL_checkinteger(L, -1);
-          if (val < MAX_FLIGHT_MODES)
-            flighModes &= ~(1 << val);
-        }
-        expo->flightModes = flighModes;
+        expo->flightModes = luaL_checkinteger(L, -1);
       }
     }
   }
@@ -753,9 +737,8 @@ Get configuration for specified Mix
  * `delayDown` (number) delay down
  * `speedUp` (number) speed up
  * `speedDown` (number) speed down
- * 'flightModes' (table) table of enabled flightModes {0,2,7} means that the input is enabled for FM0, FM2 and FM7
 
-@status current Introduced in 2.0.0, parameters below `multiplex` added in 2.0.13, flightModes added 2.3.10
+@status current Introduced in 2.0.0, parameters below `multiplex` added in 2.0.13
 */
 static int luaModelGetMix(lua_State *L)
 {
@@ -781,16 +764,6 @@ static int luaModelGetMix(lua_State *L)
     lua_pushtableinteger(L, "delayDown", mix->delayDown);
     lua_pushtableinteger(L, "speedUp", mix->speedUp);
     lua_pushtableinteger(L, "speedDown", mix->speedDown);
-    lua_pushstring(L, "flightModes");
-    lua_newtable(L);
-    for (int i = 0, cnt = 0; i < MAX_FLIGHT_MODES; i++) {
-      if (!(mix->flightModes & (1 << i))) {
-        lua_pushinteger(L, cnt++);
-        lua_pushinteger(L, i);
-        lua_settable(L, -3);
-      }
-    }
-    lua_settable(L, -3);
   }
   else {
     lua_pushnil(L);
@@ -809,7 +782,7 @@ Insert a mixer line into Channel
 
 @param value (table) see model.getMix() for table format
 
-@status current Introduced in 2.0.0, parameters below `multiplex` added in 2.0.13, flightModes added 2.3.10
+@status current Introduced in 2.0.0, parameters below `multiplex` added in 2.0.13
 */
 static int luaModelInsertMix(lua_State *L)
 {
@@ -873,16 +846,6 @@ static int luaModelInsertMix(lua_State *L)
       }
       else if (!strcmp(key, "speedDown")) {
         mix->speedDown = luaL_checkinteger(L, -1);
-      }
-      else if (!strcmp(key, "flightModes")) {
-        luaL_checktype(L, -1, LUA_TTABLE);
-        int flighModes = 0x1FF;
-        for (lua_pushnil(L); lua_next(L, -2); lua_pop(L, 1)) {
-          uint16_t val = luaL_checkinteger(L, -1);
-          if (val < MAX_FLIGHT_MODES)
-            flighModes &= ~(1 << val);
-        }
-        mix->flightModes = flighModes;
       }
     }
   }
@@ -1054,33 +1017,33 @@ static int luaModelGetCurve(lua_State *L)
 {
   unsigned int idx = luaL_checkunsigned(L, 1);
   if (idx < MAX_CURVES) {
-    CurveHeader & CurveHeader = g_model.curves[idx];
+    CurveData & curveData = g_model.curves[idx];
     lua_newtable(L);
-    lua_pushtablezstring(L, "name", CurveHeader.name);
-    lua_pushtableinteger(L, "type", CurveHeader.type);
-    lua_pushtableboolean(L, "smooth", CurveHeader.smooth);
-    lua_pushtableinteger(L, "points", CurveHeader.points + 5);
+    lua_pushtablezstring(L, "name", curveData.name);
+    lua_pushtableinteger(L, "type", curveData.type);
+    lua_pushtableboolean(L, "smooth", curveData.smooth);
+    lua_pushtableinteger(L, "points", curveData.points + 5);
     lua_pushstring(L, "y");
     lua_newtable(L);
     int8_t * point = curveAddress(idx);
-    for (int i=0; i < CurveHeader.points + 5; i++) {
+    for (int i=0; i < curveData.points + 5; i++) {
       lua_pushinteger(L, i);
       lua_pushinteger(L, *point++);
       lua_settable(L, -3);
     }
     lua_settable(L, -3);
-    if (CurveHeader.type == CURVE_TYPE_CUSTOM) {
+    if (curveData.type == CURVE_TYPE_CUSTOM) {
       lua_pushstring(L, "x");
       lua_newtable(L);
       lua_pushinteger(L, 0);
       lua_pushinteger(L, -100);
       lua_settable(L, -3);
-      for (int i=0; i < CurveHeader.points + 3; i++) {
+      for (int i=0; i < curveData.points + 3; i++) {
         lua_pushinteger(L, i+1);
         lua_pushinteger(L, *point++);
         lua_settable(L, -3);
       }
-      lua_pushinteger(L, CurveHeader.points + 4);
+      lua_pushinteger(L, curveData.points + 4);
       lua_pushinteger(L, 100);
       lua_settable(L, -3);
       lua_settable(L, -3);
@@ -1147,9 +1110,9 @@ static int luaModelSetCurve(lua_State *L)
   memset(yPoints, -127, sizeof(yPoints));
 
 
-  CurveHeader &destCurveHeader = g_model.curves[curveIdx];
-  CurveHeader newCurveHeader;
-  memclear(&newCurveHeader, sizeof(CurveHeader));
+  CurveData &destCurveData = g_model.curves[curveIdx];
+  CurveData newCurveData;
+  memclear(&newCurveData, sizeof(CurveData));
 
   luaL_checktype(L, -1, LUA_TTABLE);
   for (lua_pushnil(L); lua_next(L, -2); lua_pop(L, 1)) {
@@ -1157,18 +1120,18 @@ static int luaModelSetCurve(lua_State *L)
     const char *key = luaL_checkstring(L, -2);
     if (!strcmp(key, "name")) {
       const char *name = luaL_checkstring(L, -1);
-      str2zchar(newCurveHeader.name, name, sizeof(newCurveHeader.name));
+      str2zchar(newCurveData.name, name, sizeof(newCurveData.name));
     }
     else if (!strcmp(key, "type")) {
-      newCurveHeader.type = luaL_checkinteger(L, -1);
+      newCurveData.type = luaL_checkinteger(L, -1);
     }
     else if (!strcmp(key, "smooth")) {
       // Earlier version of this api expected a 0/1 integer instead of a boolean
       // Still accept a 0/1 here
       if (lua_isboolean(L,-1))
-        newCurveHeader.smooth = lua_toboolean(L, -1);
+        newCurveData.smooth = lua_toboolean(L, -1);
       else
-        newCurveHeader.smooth = luaL_checkinteger(L, -1);
+        newCurveData.smooth = luaL_checkinteger(L, -1);
     }
     else if (!strcmp(key, "x") || !strcmp(key, "y")) {
       luaL_checktype(L, -1, LUA_TTABLE);
@@ -1197,14 +1160,14 @@ static int luaModelSetCurve(lua_State *L)
   do {
     numPoints++;
   } while (yPoints[numPoints]!=-127 && numPoints < MAX_POINTS_PER_CURVE);
-  newCurveHeader.points = numPoints - 5;
+  newCurveData.points = numPoints - 5;
 
   if (numPoints < MIN_POINTS_PER_CURVE || numPoints > MAX_POINTS_PER_CURVE) {
     lua_pushinteger(L, 1);
     return 1;
   }
 
-  if (newCurveHeader.type == CURVE_TYPE_CUSTOM) {
+  if (newCurveData.type == CURVE_TYPE_CUSTOM) {
 
     // The rest of the points are checked by the monotonic condition
     for (unsigned int i=numPoints; i < sizeof(xPoints);i++)
@@ -1217,7 +1180,7 @@ static int luaModelSetCurve(lua_State *L)
     }
 
     // Check first and last point
-    if (xPoints[0] != -100 || xPoints[newCurveHeader.points + 4] != 100) {
+    if (xPoints[0] != -100 || xPoints[newCurveData.points + 4] != 100) {
       lua_pushinteger(L, 5);
       return 1;
     }
@@ -1232,7 +1195,7 @@ static int luaModelSetCurve(lua_State *L)
   }
 
   // Check that ypoints have the right number of points set
-  for (int i=0; i <  5 + newCurveHeader.points;i++)
+  for (int i=0; i <  5 + newCurveData.points;i++)
   {
     if (yPoints[i] == -127)
     {
@@ -1243,19 +1206,19 @@ static int luaModelSetCurve(lua_State *L)
 
   // Calculate size of curve we replace
   int oldCurveMemSize;
-  if (destCurveHeader.type == CURVE_TYPE_STANDARD) {
-    oldCurveMemSize = 5 + destCurveHeader.points;
+  if (destCurveData.type == CURVE_TYPE_STANDARD) {
+    oldCurveMemSize = 5 + destCurveData.points;
   }
   else {
-    oldCurveMemSize = 8 + 2 * destCurveHeader.points;
+    oldCurveMemSize = 8 + 2 * destCurveData.points;
   }
 
   // Calculate own size
   int newCurveMemSize;
-  if (newCurveHeader.type == CURVE_TYPE_STANDARD)
-    newCurveMemSize = 5 + newCurveHeader.points;
+  if (newCurveData.type == CURVE_TYPE_STANDARD)
+    newCurveMemSize = 5 + newCurveData.points;
   else
-    newCurveMemSize = 8 + 2 * newCurveHeader.points;
+    newCurveMemSize = 8 + 2 * newCurveData.points;
 
   int shift = newCurveMemSize - oldCurveMemSize;
 
@@ -1267,15 +1230,15 @@ static int luaModelSetCurve(lua_State *L)
   }
 
   // Curve fits into mem, fill new curve
-  destCurveHeader = newCurveHeader;
+  destCurveData = newCurveData;
 
   int8_t *point = curveAddress(curveIdx);
-  for (int i = 0; i < destCurveHeader.points + 5; i++) {
+  for (int i = 0; i < destCurveData.points + 5; i++) {
     *point++ = yPoints[i];
   }
 
-  if (destCurveHeader.type == CURVE_TYPE_CUSTOM) {
-    for (int i = 1; i < destCurveHeader.points + 4; i++) {
+  if (destCurveData.type == CURVE_TYPE_CUSTOM) {
+    for (int i = 1; i < destCurveData.points + 4; i++) {
       *point++ = xPoints[i];
     }
   }

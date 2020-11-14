@@ -21,12 +21,6 @@
 #ifndef _HAL_H_
 #define _HAL_H_
 
-#if defined(STM32F4)
-  #define CPU_FREQ            168000000
-#else
-  #define CPU_FREQ            120000000
-#endif
-
 // Keys
 #if defined(PCBX9E)
   #define KEYS_GPIO_REG_MENU            GPIOD->IDR
@@ -1242,7 +1236,6 @@
 #endif
 
 // Trainer Port
-#define HARDWARE_TRAINER_EXTERNAL_MODULE
 #if defined(PCBXLITES) || defined(PCBX9LITE)
   // on these 2 radios the trainer port already uses DMA1_Stream6, we won't use the DMA
   #define TRAINER_RCC_AHB1Periph        RCC_AHB1Periph_GPIOD
@@ -1321,7 +1314,7 @@
   #define AUX_SERIAL_RCC_APB1Periph         0
   #define AUX_SERIAL_RCC_APB2Periph         0
 #else
-  #define HARDWARE_TRAINER_AUX_SERIAL
+  #define TRAINER_BATTERY_COMPARTMENT
   #define AUX_SERIAL_RCC_AHB1Periph         (RCC_AHB1Periph_GPIOB | RCC_AHB1Periph_DMA1)
   #define AUX_SERIAL_RCC_APB1Periph         RCC_APB1Periph_USART3
   #define AUX_SERIAL_RCC_APB2Periph         0

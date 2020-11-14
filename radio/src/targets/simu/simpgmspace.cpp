@@ -52,25 +52,6 @@ USART_TypeDef Usart0, Usart1, Usart2, Usart3, Usart4;
 SysTick_Type systick;
 ADC_Common_TypeDef adc;
 RTC_TypeDef rtc;
-void GPIO_Init(GPIO_TypeDef* GPIOx, GPIO_InitTypeDef* GPIO_InitStruct) { }
-void SPI_Init(SPI_TypeDef* SPIx, SPI_InitTypeDef* SPI_InitStruct) { }
-void SPI_CalculateCRC(SPI_TypeDef* SPIx, FunctionalState NewState) { }
-void SPI_Cmd(SPI_TypeDef* SPIx, FunctionalState NewState) { }
-FlagStatus SPI_I2S_GetFlagStatus(SPI_TypeDef* SPIx, uint16_t SPI_I2S_FLAG) { return RESET; }
-uint16_t SPI_I2S_ReceiveData(SPI_TypeDef* SPIx) { return 0; }
-void SPI_I2S_SendData(SPI_TypeDef* SPIx, uint16_t Data) { }
-void DMA_DeInit(DMA_Stream_TypeDef* DMAy_Streamx) { }
-void DMA_Init(DMA_Stream_TypeDef* DMAy_Streamx, DMA_InitTypeDef* DMA_InitStruct) { }
-void DMA_ITConfig(DMA_Stream_TypeDef* DMAy_Streamx, uint32_t DMA_IT, FunctionalState NewState) { }
-void DMA_StructInit(DMA_InitTypeDef* DMA_InitStruct) { }
-void DMA_Cmd(DMA_Stream_TypeDef* DMAy_Streamx, FunctionalState NewState) { }
-void lcdCopy(void * dest, void * src);
-FlagStatus DMA_GetFlagStatus(DMA_Stream_TypeDef* DMAy_Streamx, uint32_t DMA_FLAG) { return RESET; }
-ITStatus DMA_GetITStatus(DMA_Stream_TypeDef* DMAy_Streamx, uint32_t DMA_IT) { return RESET; }
-void DMA_ClearITPendingBit(DMA_Stream_TypeDef* DMAy_Streamx, uint32_t DMA_IT) { }
-void SPI_I2S_DMACmd(SPI_TypeDef* SPIx, uint16_t SPI_I2S_DMAReq, FunctionalState NewState) { }
-void UART3_Configure(uint32_t baudrate, uint32_t masterClock) { }
-void NVIC_Init(NVIC_InitTypeDef * NVIC_InitStruct) { }
 #else
 Pio Pioa, Piob, Pioc;
 Pmc pmc;
@@ -87,16 +68,6 @@ FATFS g_FATFS_Obj;
 
 void lcdInit()
 {
-}
-
-void lcdCopy(void * dest, void * src)
-{
-
-}
-
-void lcdNextLayer()
-{
-
 }
 
 void toplcdOff()
@@ -194,7 +165,7 @@ void simuSetSwitch(uint8_t swtch, int8_t state)
   switchesStates[swtch] = state;
 }
 
-void simuStart(bool tests, const char * sdPath, const char * settingsPath)
+void StartSimu(bool tests, const char * sdPath, const char * settingsPath)
 {
   if (simu_running)
     return;
@@ -243,7 +214,7 @@ void simuStart(bool tests, const char * sdPath, const char * settingsPath)
 #endif
 }
 
-void simuStop()
+void StopSimu()
 {
   if (!simu_running)
     return;
@@ -398,12 +369,12 @@ void * audioThread(void *)
   return nullptr;
 }
 
-void startAudioThread(int volumeGain)
+void StartAudioThread(int volumeGain)
 {
   simuAudio.leftoverLen = 0;
   simuAudio.threadRunning = true;
   simuAudio.volumeGain = volumeGain;
-  TRACE_SIMPGMSPACE("startAudioThread(%d)", volumeGain);
+  TRACE_SIMPGMSPACE("StartAudioThread(%d)", volumeGain);
   setScaledVolume(VOLUME_LEVEL_DEF);
 
   pthread_attr_t attr;
@@ -417,7 +388,7 @@ void startAudioThread(int volumeGain)
 #endif
 }
 
-void stopAudioThread()
+void StopAudioThread()
 {
   simuAudio.threadRunning = false;
   pthread_join(simuAudio.threadPid, nullptr);
@@ -425,7 +396,7 @@ void stopAudioThread()
 #endif // #if defined(SIMU_AUDIO)
 
 bool simuLcdRefresh = true;
-pixel_t simuLcdBuf[DISPLAY_BUFFER_SIZE];
+display_t simuLcdBuf[DISPLAY_BUFFER_SIZE];
 
 #if !defined(COLORLCD)
 void lcdSetRefVolt(uint8_t val)
@@ -443,8 +414,8 @@ void lcdRefresh()
 {
   static bool lightEnabled = (bool)isBacklightEnabled();
 
-  if (bool(isBacklightEnabled()) != lightEnabled || memcmp(simuLcdBuf, displayBuf, DISPLAY_BUFFER_SIZE * sizeof(pixel_t))) {
-    memcpy(simuLcdBuf, displayBuf, DISPLAY_BUFFER_SIZE * sizeof(pixel_t));
+  if (bool(isBacklightEnabled()) != lightEnabled || memcmp(simuLcdBuf, displayBuf, DISPLAY_BUFFER_SIZE * sizeof(display_t))) {
+    memcpy(simuLcdBuf, displayBuf, DISPLAY_BUFFER_SIZE * sizeof(display_t));
     lightEnabled = (bool)isBacklightEnabled();
     simuLcdRefresh = true;
   }
@@ -474,7 +445,7 @@ void boardInit()
 {
 }
 
-pixel_t simuLcdBackupBuf[DISPLAY_BUFFER_SIZE];
+display_t simuLcdBackupBuf[DISPLAY_BUFFER_SIZE];
 void lcdStoreBackupBuffer()
 {
   memcpy(simuLcdBackupBuf, displayBuf, sizeof(simuLcdBackupBuf));
@@ -738,7 +709,7 @@ void boardOff()
 {
 }
 
-#if defined(PCBFRSKY) || defined(PCBFLYSKY)
+#if defined(PCBHORUS) || defined(PCBTARANIS)
 HardwareOptions hardwareOptions;
 #endif
 
@@ -798,11 +769,7 @@ void rtcSetTime(const struct gtm * t)
 }
 
 #if defined(AUX_SERIAL)
-#if defined(AUX_SERIAL_DMA_Stream_RX)
 AuxSerialRxFifo auxSerialRxFifo(nullptr);
-#else
-AuxSerialRxFifo auxSerialRxFifo;
-#endif
 uint8_t auxSerialMode;
 void auxSerialInit(unsigned int mode, unsigned int protocol)
 {
@@ -840,28 +807,3 @@ void aux2SerialStop()
 {
 }
 #endif
-
-#if defined(INTMODULE_HEARTBEAT_GPIO)
-volatile HeartbeatCapture heartbeatCapture;
-
-void init_intmodule_heartbeat()
-{
-}
-
-void stop_intmodule_heartbeat()
-{
-}
-
-void check_intmodule_heartbeat()
-{
-}
-#endif
-
-bool touchPanelEventOccured()
-{
-  return false;
-}
-
-void touchPanelRead()
-{
-}

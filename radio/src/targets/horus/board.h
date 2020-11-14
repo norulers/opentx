@@ -26,10 +26,6 @@
 #include "board_common.h"
 #include "hal.h"
 
-#if defined(HARDWARE_TOUCH)
-#include "tp_gt911.h"
-#endif
-
 PACK(typedef struct {
   uint8_t pcbrev:2;
   uint8_t sticksPwmDisabled:1;
@@ -39,10 +35,10 @@ PACK(typedef struct {
 extern HardwareOptions hardwareOptions;
 
 #if !defined(LUA_EXPORT_GENERATION)
-  #include "stm32f4xx_sdio.h"
-  #include "stm32f4xx_dma2d.h"
-  #include "stm32f4xx_ltdc.h"
-  #include "stm32f4xx_fmc.h"
+#include "STM32F4xx_DSP_StdPeriph_Lib_V1.4.0/Libraries/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_sdio.h"
+#include "STM32F4xx_DSP_StdPeriph_Lib_V1.4.0/Libraries/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_dma2d.h"
+#include "STM32F4xx_DSP_StdPeriph_Lib_V1.4.0/Libraries/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_ltdc.h"
+#include "STM32F4xx_DSP_StdPeriph_Lib_V1.4.0/Libraries/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_fmc.h"
 #endif
 
 #define FLASHSIZE                      0x200000
@@ -127,6 +123,15 @@ uint32_t sdMounted();
 #define sdMount()
 #define sdDone()
 #define SD_CARD_PRESENT()              true
+#endif
+
+#if defined(DISK_CACHE)
+#include "diskio.h"
+DRESULT __disk_read(BYTE drv, BYTE * buff, DWORD sector, UINT count);
+DRESULT __disk_write(BYTE drv, const BYTE * buff, DWORD sector, UINT count);
+#else
+#define __disk_read                    disk_read
+#define __disk_write                   disk_write
 #endif
 
 // Flash Write driver
@@ -541,7 +546,8 @@ void backlightInit();
 #else
 void backlightEnable(uint8_t dutyCycle = 0);
 #endif
-#define BACKLIGHT_LEVEL_MAX   100
+#define BACKLIGHT_LEVEL_MAX     100
+#define BACKLIGHT_FORCED_ON     BACKLIGHT_LEVEL_MAX + 1
 #if defined(PCBX12S)
 #define BACKLIGHT_LEVEL_MIN   5
 #elif defined(RADIO_FAMILY_T16)
@@ -589,10 +595,8 @@ void audioConsumeCurrentBuffer();
 #define audioEnableIrq()              // interrupts must stay enabled on Horus
 #if defined(PCBX12S)
 #define setSampleRate(freq)
-void audioWaitReady();
 #else
 void setSampleRate(uint32_t frequency);
-#define audioWaitReady()
 #endif
 void setScaledVolume(uint8_t volume);
 void setVolume(uint8_t volume);
@@ -631,8 +635,8 @@ void sportUpdatePowerInit();
 #endif
 
 // Aux serial port driver
-#if defined(AUX_SERIAL_GPIO)
 #define DEBUG_BAUDRATE                  115200
+#if defined(AUX_SERIAL_GPIO)
 extern uint8_t auxSerialMode;
 void auxSerialInit(unsigned int mode, unsigned int protocol);
 void auxSerialPutc(char c);

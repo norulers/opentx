@@ -55,16 +55,16 @@ PLAY_FUNCTION(playValue, source_t idx)
     if (telemetrySensor.prec > 0) {
       if (telemetrySensor.prec == 2) {
         if (val >= 5000) {
-          val = divRoundClosest(val, 100);
+          val = div_and_round(val, 100);
         }
         else {
-          val = divRoundClosest(val, 10);
+          val = div_and_round(val, 10);
           attr = PREC1;
         }
       }
       else {
         if (val >= 500) {
-          val = divRoundClosest(val, 10);
+          val = div_and_round(val, 10);
         }
         else {
           attr = PREC1;
@@ -178,9 +178,6 @@ void evalFunctions(const CustomFunctionData * functions, CustomFunctionsContext 
           case FUNC_INSTANT_TRIM:
             newActiveFunctions |= (1u << FUNCTION_INSTANT_TRIM);
             if (!isFunctionActive(FUNCTION_INSTANT_TRIM)) {
-#if defined(COLORLCD)
-  #warning IS_INSTANT_TRIM_ALLOWED() is always false
-#endif
               if (IS_INSTANT_TRIM_ALLOWED()) {
                 instantTrim();
               }
@@ -359,9 +356,18 @@ void evalFunctions(const CustomFunctionData * functions, CustomFunctionsContext 
 
           case FUNC_BACKLIGHT:
           {
+            newActiveFunctions |= (1u << FUNCTION_BACKLIGHT);
+            if (!CFN_PARAM(cfn)) {  // When no source is set, backlight works like original backlight and turn on regardless of backlight settings
+              requiredBacklightBright = BACKLIGHT_FORCED_ON;
+              break;
+            }
+
             getvalue_t raw = getValue(CFN_PARAM(cfn));
 #if defined(COLORLCD)
-            requiredBacklightBright = (1024 - raw) * (BACKLIGHT_LEVEL_MAX - BACKLIGHT_LEVEL_MIN) / 2048;
+            if (raw == -1024)
+              requiredBacklightBright = 100;
+            else
+              requiredBacklightBright = (1024 - raw) * (BACKLIGHT_LEVEL_MAX - BACKLIGHT_LEVEL_MIN) / 2048;
 #else
             requiredBacklightBright = (1024 - raw) * 100 / 2048;
 #endif

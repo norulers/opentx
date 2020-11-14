@@ -20,40 +20,13 @@
 
 #include "opentx.h"
 
-#if defined(LIBOPENUI)
-  #include "mainwindow.h"
-#endif
-
 uint8_t currentSpeakerVolume = 255;
 uint8_t requiredSpeakerVolume = 255;
 uint8_t currentBacklightBright = 0;
 uint8_t requiredBacklightBright = 0;
 uint8_t mainRequestFlags = 0;
 
-#if defined(LIBOPENUI)
-void openUsbMenu()
-{
-  static Menu * menu = nullptr;
-  if (menu)
-    return;
-  menu = new Menu(&mainWindow);
-  menu->setCloseHandler([]() {
-    menu = nullptr;
-  });
-  menu->setTitle("USB");
-  menu->addLine(STR_USB_JOYSTICK, [] {
-    setSelectedUsbMode(USB_JOYSTICK_MODE);
-  });
-  menu->addLine(STR_USB_MASS_STORAGE, [] {
-    setSelectedUsbMode(USB_MASS_STORAGE_MODE);
-  });
-#if defined(DEBUG)
-  menu->addLine(STR_USB_SERIAL, [] {
-    setSelectedUsbMode(USB_SERIAL_MODE);
-  });
-#endif
-}
-#elif defined(STM32)
+#if defined(STM32)
 void onUSBConnectMenu(const char *result)
 {
   if (result == STR_USB_MASS_STORAGE) {
@@ -66,17 +39,6 @@ void onUSBConnectMenu(const char *result)
     setSelectedUsbMode(USB_SERIAL_MODE);
   }
 }
-
-void openUsbMenu()
-{
-  POPUP_MENU_ADD_ITEM(STR_USB_JOYSTICK);
-  POPUP_MENU_ADD_ITEM(STR_USB_MASS_STORAGE);
-#if defined(DEBUG)
-  POPUP_MENU_ADD_ITEM(STR_USB_SERIAL);
-#endif
-  POPUP_MENU_TITLE(STR_SELECT_MODE);
-  POPUP_MENU_START(onUSBConnectMenu);
-}
 #endif
 
 void handleUsbConnection()
@@ -85,7 +47,13 @@ void handleUsbConnection()
   if (!usbStarted() && usbPlugged()) {
     if (getSelectedUsbMode() == USB_UNSELECTED_MODE) {
       if (g_eeGeneral.USBMode == USB_UNSELECTED_MODE && popupMenuItemsCount == 0) {
-        openUsbMenu();
+        POPUP_MENU_ADD_ITEM(STR_USB_JOYSTICK);
+        POPUP_MENU_ADD_ITEM(STR_USB_MASS_STORAGE);
+#if defined(DEBUG)
+        POPUP_MENU_ADD_ITEM(STR_USB_SERIAL);
+#endif
+        POPUP_MENU_TITLE(STR_SELECT_MODE);
+        POPUP_MENU_START(onUSBConnectMenu);
       }
       else {
         setSelectedUsbMode(g_eeGeneral.USBMode);
@@ -285,7 +253,7 @@ void guiMain(event_t evt)
 {
   bool refreshNeeded = false;
 
-#if defined(LUA) && !defined(LIBOPENUI)
+#if defined(LUA)
   uint32_t t0 = get_tmr10ms();
   static uint32_t lastLuaTime = 0;
   uint16_t interval = (lastLuaTime == 0 ? 0 : (t0 - lastLuaTime));
@@ -321,15 +289,12 @@ void guiMain(event_t evt)
   if (t0 > maxLuaDuration) {
     maxLuaDuration = t0;
   }
-#elif !defined(LIBOPENUI)
+#else
   lcdRefreshWait();   // WARNING: make sure no code above this line does any change to the LCD display buffer!
 #endif
 
   bool screenshotRequested = (mainRequestFlags & (1u << REQUEST_SCREENSHOT));
 
-#if defined(LIBOPENUI)
-  mainWindow.run();
-#else
   if (!refreshNeeded) {
     DEBUG_TIMER_START(debugTimerMenus);
     while (true) {
@@ -408,7 +373,6 @@ void guiMain(event_t evt)
     lcdRefresh();
     DEBUG_TIMER_STOP(debugTimerLcdRefresh);
   }
-#endif
 }
 #elif defined(GUI)
 void handleGui(event_t event) {
@@ -534,9 +498,7 @@ void perMain()
 
   checkBacklight();
 
-#if !defined(LIBOPENUI)
   event_t evt = getEvent(false);
-#endif
 
 #if defined(RTC_BACKUP_RAM)
   if (globalData.unexpectedShutdown) {
@@ -561,25 +523,17 @@ void perMain()
 
 #if defined(STM32)
   if (usbPlugged() && getSelectedUsbMode() == USB_MASS_STORAGE_MODE) {
-#if defined(LIBOPENUI)
-    #warning "TODO USB plugged view"
-#else
     // disable access to menus
     lcdClear();
     menuMainView(0);
     lcdRefresh();
-#endif
     return;
   }
 #endif
 
 #if defined(GUI)
   DEBUG_TIMER_START(debugTimerGuiMain);
-#if defined(LIBOPENUI)
-  guiMain(0);
-#else
   guiMain(evt);
-#endif
   DEBUG_TIMER_STOP(debugTimerGuiMain);
 #endif
 

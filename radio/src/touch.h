@@ -23,11 +23,11 @@
 
 enum TouchEvent
 {
-    TE_NONE,
-    TE_DOWN,
-    TE_UP,
-    TE_SLIDE,
-    TE_SLIDE_END
+  TE_NONE,
+  TE_DOWN,
+  TE_UP,
+  TE_SLIDE,
+  TE_SLIDE_END
 };
 
 struct TouchState

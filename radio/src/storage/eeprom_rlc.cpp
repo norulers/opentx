@@ -465,11 +465,13 @@ const char * eeBackupModel(uint8_t i_fileSrc)
 
   uint8_t i = sizeof(MODELS_PATH)+sizeof(g_model.header.name)-1;
   uint8_t len = 0;
-  while (i > sizeof(MODELS_PATH)-1) {
+  while (i>sizeof(MODELS_PATH)-1) {
     if (!len && buf[i])
       len = i+1;
     if (len) {
-      if (!buf[i])
+      if (buf[i])
+        buf[i] = zchar2char(buf[i]);
+      else
         buf[i] = '_';
     }
     i--;
@@ -594,7 +596,7 @@ const char * eeRestoreModel(uint8_t i_fileDst, char *model_name)
 
   f_close(&g_oLogFile);
 
-#if defined(STORAGE_CONVERSIONS)
+#if defined(EEPROM_CONVERSIONS)
   if (version < EEPROM_VER) {
     storageCheck(true);
     eeConvertModel(i_fileDst, version);
@@ -802,7 +804,7 @@ bool eeLoadGeneral(bool allowFixes)
   }
 #endif
 
-#if defined(STORAGE_CONVERSIONS)
+#if defined(EEPROM_CONVERSIONS)
   if (g_eeGeneral.version != EEPROM_VER) {
     TRACE("EEPROM version %d instead of %d", g_eeGeneral.version, EEPROM_VER);
     if (!allowFixes)

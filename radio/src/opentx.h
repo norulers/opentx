@@ -25,12 +25,8 @@
 #include "definitions.h"
 #include "opentx_types.h"
 #include "debounce.h"
+#include "globals.h"
 #include "opentx_helpers.h"
-#include "touch.h"
-
-#if defined(LIBOPENUI)
-#include "libopenui.h"
-#endif
 
 #if defined(SIMU)
 #include "targets/simu/simpgmspace.h"
@@ -244,7 +240,7 @@
 
 #include "debug.h"
 
-#if defined(PCBFRSKY)
+#if defined(PCBTARANIS) || defined(PCBHORUS)
   #define SWSRC_THR                    SWSRC_SB2
   #define SWSRC_GEA                    SWSRC_SG2
   #define SWSRC_ID0                    SWSRC_SA0
@@ -256,7 +252,6 @@
 #endif
 
 #include "myeeprom.h"
-#include "curves.h"
 
 void memswap(void * a, void * b, uint8_t size);
 
@@ -358,7 +353,6 @@ extern const uint8_t modn12x3[];
 #endif
 
 extern uint8_t channelOrder(uint8_t x);
-extern uint8_t channelOrder(uint8_t setup, uint8_t x);
 
 #define THRCHK_DEADBAND                16
 
@@ -383,6 +377,7 @@ inline bool SPLASH_NEEDED()
   #define IS_ROTARY_ENCODER_NAVIGATION_ENABLE()  true
   extern volatile rotenc_t rotencValue;
   #define ROTARY_ENCODER_NAVIGATION_VALUE        rotencValue
+  extern uint8_t rotencSpeed;
   #define ROTENC_LOWSPEED              1
   #define ROTENC_MIDSPEED              5
   #define ROTENC_HIGHSPEED             50
@@ -430,11 +425,12 @@ char char2lower(char c);
 int8_t char2zchar(char c);
 void str2zchar(char *dest, const char *src, int size);
 int zchar2str(char *dest, const char *src, int size);
+bool cmpStrWithZchar(const char * charString, const char * zcharString, int size);
 
 #include "keys.h"
 #include "pwr.h"
 
-#if defined(PCBFRSKY) || defined(PCBNV14)
+#if defined(PCBTARANIS) || defined(PCBHORUS)
 div_t switchInfo(int switchPosition);
 extern uint8_t potsPos[NUM_XPOTS];
 #endif
@@ -449,16 +445,6 @@ void alert(const char * title, const char * msg, uint8_t sound);
 #if !defined(GUI)
   #define RAISE_ALERT(...)
   #define ALERT(...)
-#elif defined(COLORLCD)
-  void raiseAlert(const char * title, const char * msg, const char * info, uint8_t sound);
-  inline void RAISE_ALERT(const char * title, const char * msg, const char * info, uint8_t sound)
-  {
-    raiseAlert(title, msg, info, sound);
-  }
-  inline void ALERT(const char * title, const char * msg, uint8_t sound)
-  {
-    raiseAlert(title, msg, "", sound);
-  }
 #else
   inline void RAISE_ALERT(const char * title, const char * msg, const char * info, uint8_t sound)
   {
@@ -516,7 +502,7 @@ void logicalSwitchesReset();
 void evalLogicalSwitches(bool isCurrentFlightmode=true);
 void logicalSwitchesCopyState(uint8_t src, uint8_t dst);
 
-#if defined(PCBFRSKY) || defined(PCBFLYSKY)
+#if defined(PCBTARANIS) || defined(PCBHORUS)
   void getSwitchesPosition(bool startup);
 #else
   #define getSwitchesPosition(...)
@@ -624,6 +610,8 @@ static inline void GET_ADC_IF_MIXER_NOT_RUNNING()
 void resetBacklightTimeout();
 void checkBacklight();
 
+#define BITMASK(bit) (1<<(bit))
+
 uint16_t isqrt32(uint32_t n);
 
 #if defined(BOOT)
@@ -653,9 +641,13 @@ uint8_t findNextUnusedModelId(uint8_t index, uint8_t module);
 #endif
 
 uint32_t hash(const void * ptr, uint32_t size);
-
-#define calc100to256_16Bits(x) calc100to256(x)
-#define calc100toRESX_16Bits(x) calc100toRESX(x)
+inline int divRoundClosest(const int n, const int d)
+{
+  if (d == 0)
+    return 0;
+  else
+    return ((n < 0) ^ (d < 0)) ? ((n - d/2)/d) : ((n + d/2)/d);
+}
 
 #define calc100to256_16Bits(x) calc100to256(x)
 #define calc100toRESX_16Bits(x) calc100toRESX(x)
@@ -684,6 +676,7 @@ inline int calcRESXto100(int x)
 {
   return divRoundClosest(x*100, RESX);
 }
+
 
 #if defined(COLORLCD)
 extern const char fw_stamp[];
@@ -766,8 +759,34 @@ inline void getGVarIncDecRange(int16_t & valMin, int16_t & valMax)
 }
 #endif
 
-
-
+// Curves
+enum BaseCurves {
+  CURVE_NONE,
+  CURVE_X_GT0,
+  CURVE_X_LT0,
+  CURVE_ABS_X,
+  CURVE_F_GT0,
+  CURVE_F_LT0,
+  CURVE_ABS_F,
+  CURVE_BASE
+};
+int8_t * curveAddress(uint8_t idx);
+struct point_t
+{
+  coord_t x;
+  coord_t y;
+};
+point_t getPoint(uint8_t i);
+typedef CurveData CurveInfo;
+void loadCurves();
+#define LOAD_MODEL_CURVES() loadCurves()
+int intpol(int x, uint8_t idx);
+int applyCurve(int x, CurveRef & curve);
+int applyCustomCurve(int x, uint8_t idx);
+int applyCurrentCurve(int x);
+int8_t getCurveX(int noPoints, int point);
+void resetCustomCurveX(int8_t * points, int noPoints);
+bool moveCurve(uint8_t index, int8_t shift); // TODO bool?
 
 void clearInputs();
 void defaultInputs();
@@ -794,15 +813,20 @@ void copySticksToOffset(uint8_t ch);
 void copyMinMaxToOutputs(uint8_t ch);
 void moveTrimsToOffsets();
 
-inline bool isExpoActive(uint8_t expo)
-{
-  return swOn[expo].activeExpo;
-}
+#if defined(BOLD_FONT)
+  inline bool isExpoActive(uint8_t expo)
+  {
+    return swOn[expo].activeExpo;
+  }
 
-inline bool isMixActive(uint8_t mix)
-{
-  return swOn[mix].activeMix;
-}
+  inline bool isMixActive(uint8_t mix)
+  {
+    return swOn[mix].activeMix;
+  }
+#else
+  #define isExpoActive(x) false
+  #define isMixActive(x) false
+#endif
 
 enum LogicalSwitchFamilies {
   LS_FAMILY_OFS,
@@ -828,6 +852,7 @@ enum FunctionsActive {
 #endif
   FUNCTION_BACKGND_MUSIC,
   FUNCTION_BACKGND_MUSIC_PAUSE,
+  FUNCTION_BACKLIGHT,
 };
 
 #define VARIO_FREQUENCY_ZERO   700/*Hz*/
@@ -889,7 +914,7 @@ enum AUDIO_SOUNDS {
   AU_STICK2_MIDDLE,
   AU_STICK3_MIDDLE,
   AU_STICK4_MIDDLE,
-#if defined(PCBFRSKY)
+#if defined(PCBTARANIS) || defined(PCBHORUS)
   AU_POT1_MIDDLE,
   AU_POT2_MIDDLE,
 #if defined(PCBX9E)
@@ -942,6 +967,7 @@ enum AUDIO_SOUNDS {
 
 #include "buzzer.h"
 #include "translations.h"
+#include "fonts.h"
 
 #if defined(HAPTIC)
 #include "haptic.h"
@@ -1042,7 +1068,7 @@ union ReusableBuffer
     int16_t loVals[NUM_STICKS+NUM_POTS+NUM_SLIDERS+STORAGE_NUM_MOUSE_ANALOGS];
     int16_t hiVals[NUM_STICKS+NUM_POTS+NUM_SLIDERS+STORAGE_NUM_MOUSE_ANALOGS];
     uint8_t state;
-#if defined(PCBFRSKY)
+#if defined(PCBTARANIS) || defined(PCBHORUS)
     struct {
       uint8_t stepsCount;
       int16_t steps[XPOTS_MULTIPOS_COUNT];
@@ -1064,25 +1090,16 @@ union ReusableBuffer
   } sdManager;
 #endif
 
-#if defined(STM32)
-  struct
-  {
-    char id[27];
-  } version;
-#endif
-
   struct {
     ModuleInformation modules[NUM_MODULES];
     uint32_t updateTime;
     ModuleSettings moduleSettings;
     ReceiverSettings receiverSettings; // when dealing with receiver settings, we also need module settings
-    char msg[64];
   } hardwareAndSettings; // moduleOptions, receiverOptions, radioVersion
 
   struct {
     ModuleInformation modules[NUM_MODULES];
     uint8_t linesCount;
-    char msg[64];
   } radioTools;
 
   struct {
@@ -1176,11 +1193,25 @@ inline getvalue_t convertTelemValue(source_t channel, ls_telemetry_value_t value
   return convert16bitsTelemValue(channel, value);
 }
 
+inline int div_and_round(int num, int den)
+{
+  if (den == 0) {
+    return 0;
+  }
+  else if (num >= 0) {
+    num += den / 2;
+  }
+  else {
+    num -= den / 2;
+  }
+  return num / den;
+}
+
 extern uint8_t g_vbat100mV;
 
 inline uint8_t GET_TXBATT_BARS(uint8_t barsMax)
 {
-  return limit<int8_t>(0, divRoundClosest(barsMax * (g_vbat100mV - g_eeGeneral.vBatMin - 90), 30 + g_eeGeneral.vBatMax - g_eeGeneral.vBatMin), barsMax);
+  return limit<int8_t>(0, div_and_round(barsMax * (g_vbat100mV - g_eeGeneral.vBatMin - 90), 30 + g_eeGeneral.vBatMax - g_eeGeneral.vBatMin), barsMax);
 }
 
 inline bool IS_TXBATT_WARNING()
@@ -1295,10 +1326,7 @@ inline bool isAsteriskDisplayed()
   return globalData.unexpectedShutdown;
 }
 
-#include "module.h"
-
 #if defined(ACCESS_LIB)
-// TODO should be inside module.h
 #include "thirdparty/libACCESS/libAccess.h"
 #endif
 

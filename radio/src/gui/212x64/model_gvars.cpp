@@ -103,7 +103,7 @@ void menuModelGVarOne(event_t event)
         break;
 
       case GVAR_FIELD_POPUP:
-        gvar->popup = editCheckBox(gvar->popup, GVAR_2ND_COLUMN, y, STR_POPUP, attr, event);
+        ON_OFF_MENU_ITEM(gvar->popup, GVAR_2ND_COLUMN, y, STR_POPUP, attr, event);
         break;
 
       default:
@@ -146,7 +146,7 @@ void menuModelGVars(event_t event)
     }
   }
   else {
-    menuTitle = STR_MENU_GLOBAL_VARS;
+    menuTitle = STR_MENUGLOBALVARS;
   }
 
   MENU_FLAGS(menuTitle, menuTabModel, MENU_MODEL_GVARS, after2seconds ? CHECK_FLAG_NO_SCREEN_INDEX : 0, MAX_GVARS, { GVARS_COLUMNS, GVARS_COLUMNS, GVARS_COLUMNS, GVARS_COLUMNS, GVARS_COLUMNS, GVARS_COLUMNS, GVARS_COLUMNS, GVARS_COLUMNS, GVARS_COLUMNS });

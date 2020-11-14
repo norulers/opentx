@@ -150,7 +150,7 @@ configure_file(${COMPANION_SRC_DIRECTORY}/translations.qrc.in ${TRANSLATIONS_QRC
 
 ### Add optional "translations" target for updating .ts files
 if(QT_LUPDATE_EXECUTABLE)
-  add_custom_target(companion_translations
+  add_custom_target(translations
     WORKING_DIRECTORY ${COMPANION_SRC_DIRECTORY}
     COMMAND ${QT_LUPDATE_EXECUTABLE} ${CMAKE_SOURCE_DIR} -no-obsolete -ts ${companion_TS}
     )
@@ -389,6 +389,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   install(FILES ../targets/linux/45-usbasp.rules DESTINATION ${INSTALL_TEMP_LIB_PFX}lib/udev/rules.d RENAME 45-companion${C9X_NAME_SUFFIX}-usbasp.rules)
   # Linux specific code
   set(OperatingSystem "Linux")
+
 elseif(WIN32)
   if(NOT WIN_DO_FULL_INSTALL)
     # Just copy supporting DLLs to build folder
@@ -487,6 +488,7 @@ if(WIN32)
       COMMENT "Building Windows NSIS installer..."
     )
   endif()
+
 endif()
 
 set(CPACK_PACKAGE_NAME "companion${C9X_NAME_SUFFIX}")
@@ -511,6 +513,8 @@ IF(APPLE)
   # Use a non standard Info.plist that adds Retina support flags
   set_target_properties(${COMPANION_NAME} PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${PROJECT_SOURCE_DIR}/companion/targets/mac/MacOSXBundleInfo.plist.in)
   set_target_properties(${SIMULATOR_NAME} PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${PROJECT_SOURCE_DIR}/companion/targets/mac/MacOSXBundleInfo.plist.in)
+  
+  set(MACOSX_BUNDLE_GUI_IDENTIFIER "org.opentx.companion")
 
   INSTALL(TARGETS ${COMPANION_NAME}
       BUNDLE DESTINATION . COMPONENT Runtime

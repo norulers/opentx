@@ -205,7 +205,7 @@ void menuModelSensor(event_t event)
         }
         else {
           if (sensor->unit == UNIT_RPMS) {
-            lcdDrawTextAlignedLeft(y, STR_BLADES);
+            lcdDrawTextAlignedLeft(y, NO_INDENT(STR_BLADES));
             if (attr) CHECK_INCDEC_MODELVAR(event, sensor->custom.ratio, 1, 30000);
             lcdDrawNumber(SENSOR_2ND_COLUMN, y, sensor->custom.ratio, LEFT|attr);
             break;
@@ -273,30 +273,31 @@ void menuModelSensor(event_t event)
       }
 
       case SENSOR_FIELD_AUTOOFFSET:
-        sensor->autoOffset = editCheckBox(sensor->autoOffset, SENSOR_2ND_COLUMN, y, STR_AUTOOFFSET, attr, event);
+        ON_OFF_MENU_ITEM(sensor->autoOffset, SENSOR_2ND_COLUMN, y, STR_AUTOOFFSET, attr, event);
         break;
 
       case SENSOR_FIELD_ONLYPOSITIVE:
-        sensor->onlyPositive = editCheckBox(sensor->onlyPositive, SENSOR_2ND_COLUMN, y, STR_ONLYPOSITIVE, attr, event);
+        ON_OFF_MENU_ITEM(sensor->onlyPositive, SENSOR_2ND_COLUMN, y, STR_ONLYPOSITIVE, attr, event);
         break;
 
       case SENSOR_FIELD_FILTER:
-        sensor->filter = editCheckBox(sensor->filter, SENSOR_2ND_COLUMN, y, STR_FILTER, attr, event);
+        ON_OFF_MENU_ITEM(sensor->filter, SENSOR_2ND_COLUMN, y, STR_FILTER, attr, event);
         break;
 
       case SENSOR_FIELD_PERSISTENT:
-        sensor->persistent = editCheckBox(sensor->persistent, SENSOR_2ND_COLUMN, y, NO_INDENT(STR_PERSISTENT), attr, event);
+        ON_OFF_MENU_ITEM(sensor->persistent, SENSOR_2ND_COLUMN, y, NO_INDENT(STR_PERSISTENT), attr, event);
         if (checkIncDec_Ret && !sensor->persistent) {
           sensor->persistentValue = 0;
         }
         break;
 
       case SENSOR_FIELD_LOGS:
-        sensor->logs = editCheckBox(sensor->logs, SENSOR_2ND_COLUMN, y, STR_LOGS, attr, event);
+        ON_OFF_MENU_ITEM(sensor->logs, SENSOR_2ND_COLUMN, y, STR_LOGS, attr, event);
         if (attr && checkIncDec_Ret) {
           logsClose();
         }
         break;
+
     }
   }
 }

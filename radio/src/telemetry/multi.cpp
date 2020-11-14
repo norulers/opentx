@@ -64,7 +64,7 @@ enum MultiBufferState : uint8_t
 
 static MultiModuleStatus multiModuleStatus[NUM_MODULES] = {MultiModuleStatus(), MultiModuleStatus()};
 static MultiModuleSyncStatus multiSyncStatus[NUM_MODULES] = {MultiModuleSyncStatus(), MultiModuleSyncStatus()};
-static uint8_t multiBindStatus[NUM_MODULES] = {MULTI_BIND_NONE, MULTI_BIND_NONE};
+static uint8_t multiBindStatus[NUM_MODULES] = {MULTI_NORMAL_OPERATION, MULTI_NORMAL_OPERATION};
 
 static MultiBufferState multiTelemetryBufferState[NUM_MODULES];
 static uint16_t multiTelemetryLastRxTS[NUM_MODULES];
@@ -112,7 +112,7 @@ uint8_t intTelemetryRxBufferCount;
 
 static MultiModuleStatus multiModuleStatus;
 static MultiModuleSyncStatus multiSyncStatus;
-static uint8_t multiBindStatus = MULTI_BIND_NONE;
+static uint8_t multiBindStatus = MULTI_NORMAL_OPERATION;
 
 static MultiBufferState multiTelemetryBufferState;
 static uint16_t multiTelemetryLastRxTS;
@@ -172,10 +172,10 @@ static MultiBufferState guessProtocol(uint8_t module)
     return FrskyTelemetryFallback;
 }
 
-static void processMultiScannerPacket(const uint8_t *data, const uint8_t moduleIdx)
+static void processMultiScannerPacket(const uint8_t *data)
 {
   uint8_t cur_channel = data[0];
-  if (moduleState[moduleIdx].mode == MODULE_MODE_SPECTRUM_ANALYSER) {
+  if (moduleState[g_moduleIdx].mode == MODULE_MODE_SPECTRUM_ANALYSER) {
     for (uint8_t channel = 0; channel <5; channel++) {
       uint8_t power = max<int>(0,(data[channel+1] - 34) >> 1); // remove everything below -120dB
 
@@ -279,7 +279,7 @@ static void processMultiRxChannels(const uint8_t * data, uint8_t len)
 {
   if (g_model.trainerData.mode != TRAINER_MODE_MULTI)
     return;
-
+  
   //uint8_t pps  = data[0];
   //uint8_t rssi = data[1];
   int ch    = max(data[2], (uint8_t)0);
@@ -414,7 +414,7 @@ static void processMultiTelemetryPaket(const uint8_t * packet, uint8_t module)
 #endif
     case SpectrumScannerPacket:
       if (len == 6)
-        processMultiScannerPacket(data, module);
+        processMultiScannerPacket(data);
       else
         TRACE("[MP] Received spectrum scanner len %d != 6", len);
       break;
@@ -427,7 +427,7 @@ static void processMultiTelemetryPaket(const uint8_t * packet, uint8_t module)
         TRACE("[MP] Received RX channels len %d < 4", len);
       break;
 #endif
-
+      
     default:
       TRACE("[MP] Unkown multi packet type 0x%02X, len %d", type, len);
       break;
@@ -524,7 +524,7 @@ void MultiModuleSyncStatus::getRefreshString(char * statusText)
   tmp = strAppendUnsigned(tmp, inputLag, 5);
   tmp = strAppend(tmp, "us R ");
   tmp = strAppendUnsigned(tmp, (uint32_t) (adjustedRefreshRate / 1000), 5);
-  tmp = strAppend(tmp, STR_US);
+  tmp = strAppend(tmp, "us");
 #else
   tmp = strAppend(tmp, "Sync at ");
   tmp = strAppendUnsigned(tmp, (uint32_t) (adjustedRefreshRate / 1000000));
@@ -535,7 +535,7 @@ void MultiModuleSyncStatus::getRefreshString(char * statusText)
 void MultiModuleStatus::getStatusString(char * statusText) const
 {
   if (!isValid()) {
-#if defined(PCBFRSKY)
+#if defined(PCBTARANIS) || defined(PCBHORUS)
 #if !defined(INTERNAL_MODULE_MULTI)
     if (isSportLineUsedByInternalModule())
       strcpy(statusText, STR_DISABLE_INTERNAL);
