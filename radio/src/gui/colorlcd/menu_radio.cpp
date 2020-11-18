@@ -19,25 +19,21 @@
  */
 
 #include "opentx.h"
-#include "menu_radio.h"
-#include "radio_setup.h"
-#include "radio_sdmanager.h"
-#include "radio_tools.h"
-#include "special_functions.h"
-#include "radio_calibration.h"
-#include "radio_trainer.h"
-#include "radio_version.h"
-#include "radio_hardware.h"
-#include "myeeprom.h"
 
-RadioMenu::RadioMenu():
-  TabsGroup(ICON_RADIO)
+const MenuHandlerFunc menuTabGeneral[MENU_RADIO_PAGES_COUNT] = {
+#if defined(RADIO_TOOLS)
+  menuRadioTools,
+#endif
+  menuRadioSdManager,
+  menuRadioSetup,
+  menuRadioSpecialFunctions,
+  menuRadioTrainer,
+  menuRadioHardware,
+  menuRadioVersion,
+};
+
+bool menuRadioSpecialFunctions(event_t event)
 {
-  addTab(new RadioSetupPage());
-  addTab(new RadioSdManagerPage());
-  addTab(new RadioToolsPage());
-  addTab(new SpecialFunctionsPage(g_eeGeneral.customFn));
-  addTab(new RadioTrainerPage());
-  addTab(new RadioHardwarePage());
-  addTab(new RadioVersionPage());
+  MENU(STR_MENUSPECIALFUNCS, RADIO_ICONS, menuTabGeneral, MENU_RADIO_SPECIAL_FUNCTIONS, MAX_SPECIAL_FUNCTIONS, { NAVIGATION_LINE_BY_LINE|4/*repeated*/ });
+  return menuSpecialFunctions(event, g_eeGeneral.customFn, globalFunctionsContext);
 }

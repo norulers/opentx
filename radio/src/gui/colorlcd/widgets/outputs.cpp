@@ -59,13 +59,13 @@ class OutputsWidget: public Widget
           lcdDrawSolidFilledRect((chanVal > 0 ? barMid : barMid - fillW), barTop, fillW, barH, MAINVIEW_GRAPHICS_COLOR);
         lcd->drawSolidVerticalLine(barMid, barTop, barH, MAINVIEW_GRAPHICS_COLOR);
         lcdDrawRect(x, rowTop, w, rowH + 1);
-        lcdDrawNumber(x + barW - 10, barTop, chanVal, FONT(XS) | DEFAULT_COLOR | RIGHT, 0, nullptr, "%");
+        lcdDrawNumber(x + barW - 10, barTop, chanVal, SMLSIZE | TEXT_COLOR | RIGHT, 0, NULL, "%");
         if (g_model.limitData[curChan - 1].name[0] != 0) {
-          lcdDrawNumber(barLft + 1, barTop, curChan, FONT(XS) | DEFAULT_COLOR | LEFT | LEADING0, 2);
-          lcdDrawSizedText(barLft + 23, barTop, g_model.limitData[curChan - 1].name, sizeof(g_model.limitData[curChan - 1].name), FONT(XS) | DEFAULT_COLOR | LEFT | ZCHAR);
+          lcdDrawNumber(barLft + 1, barTop, curChan, SMLSIZE | TEXT_COLOR | LEFT | LEADING0, 2);
+          lcdDrawSizedText(barLft + 23, barTop, g_model.limitData[curChan - 1].name, sizeof(g_model.limitData[curChan - 1].name), SMLSIZE | TEXT_COLOR | LEFT | ZCHAR);
         }
         else {
-          putsChn(barLft + 1, barTop, curChan, FONT(XS) | DEFAULT_COLOR | LEFT);
+          putsChn(barLft + 1, barTop, curChan, SMLSIZE | TEXT_COLOR | LEFT);
         }
       }
       return lastChan - 1;
@@ -73,22 +73,13 @@ class OutputsWidget: public Widget
 
     void twoColumns()
     {
-      uint8_t endColumn = drawChannels(zone.x, zone.y, zone.w / 2, zone.h,
-                                       persistentData->options[0].value.unsignedValue,
-                                       persistentData->options[1].value.boolValue,
-                                       persistentData->options[2].value.unsignedValue);
-
-      drawChannels(zone.x + zone.w / 2 + 2, zone.y, zone.w / 2, zone.h, endColumn + 1,
-                   persistentData->options[1].value.boolValue,
-                   persistentData->options[2].value.unsignedValue);
+      uint8_t endColumn = drawChannels(zone.x, zone.y, zone.w / 2, zone.h, persistentData->options[0].unsignedValue, persistentData->options[1].boolValue, persistentData->options[2].unsignedValue);
+      drawChannels(zone.x + zone.w / 2 + 2, zone.y, zone.w / 2, zone.h, endColumn + 1, persistentData->options[1].boolValue, persistentData->options[2].unsignedValue);
     }
 
     void oneColumn()
     {
-      drawChannels(zone.x, zone.y, zone.w, zone.h,
-                   persistentData->options[0].value.unsignedValue,
-                   persistentData->options[1].value.boolValue,
-                   persistentData->options[2].value.unsignedValue);
+      drawChannels(zone.x, zone.y, zone.w, zone.h, persistentData->options[0].unsignedValue, persistentData->options[1].boolValue, persistentData->options[2].unsignedValue);
     }
 
     static const ZoneOption options[];

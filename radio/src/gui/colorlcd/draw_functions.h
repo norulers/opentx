@@ -21,16 +21,13 @@
 #ifndef _DRAW_FUNCTIONS_H_
 #define _DRAW_FUNCTIONS_H_
 
-#include "dataconstants.h"
-#include "telemetry/telemetry_sensors.h"
-#include <stdio.h>
+#include "opentx.h"
+#include "common/colorlcd/draw_functions.h"
 
 #define OPTION_MENU_NO_FOOTER          0x01
 #define OPTION_MENU_TITLE_BAR          0x02
 #define OPTION_MENU_NO_SCROLLBAR       0x04
 
-#define OPTION_SLIDER_INVERS           INVERS
-#define OPTION_SLIDER_BLINK            BLINK
 #define OPTION_SLIDER_VERTICAL         0x04
 #define OPTION_SLIDER_EMPTY_BAR        0x08
 #define OPTION_SLIDER_DBL_COLOR        0x10
@@ -40,50 +37,45 @@
 #define OPTION_SLIDER_NUMBER_BUTTON    0x100
 #define OPTION_SLIDER_SQUARE_BUTTON    0x200
 
-coord_t drawStringWithIndex(BitmapBuffer * dc, coord_t x, coord_t y, const char * str, int idx, LcdFlags flags = 0, const char * prefix = nullptr, const char * suffix = nullptr);
-void drawFatalErrorScreen(const char * message);
-void runFatalErrorScreen(const char * message);
-void drawPower(coord_t x, coord_t y, int8_t dBm, LcdFlags att);
-void drawSource(BitmapBuffer * dc, coord_t x, coord_t y, mixsrc_t idx, LcdFlags flags=0);
-coord_t drawSwitch(BitmapBuffer * dc, coord_t x, coord_t y, int32_t idx, LcdFlags flags=0);
-void drawTrimMode(BitmapBuffer * dc, coord_t x, coord_t y, uint8_t phase, uint8_t idx, LcdFlags flags = 0);
-void drawCurveRef(BitmapBuffer * dc, coord_t x, coord_t y, const CurveRef & curve, LcdFlags flags = 0);
+void drawStatusText(const char * text);
+void drawColumnHeader(const char * const * headers, const char * const * descriptions, uint8_t index);
+void drawTopbarDatetime();
 
-#if defined(FLIGHT_MODES)
-void drawFlightMode(coord_t x, coord_t y, int8_t idx, LcdFlags att);
+#define BUTTON_ON   0x10
+#define BUTTON_OFF  0x20
+void drawButton(coord_t x, coord_t y, const char * label, LcdFlags attr);
+void drawCheckBox(coord_t x, coord_t y, uint8_t value, LcdFlags attr);
+void drawVerticalScrollbar(coord_t x, coord_t y, coord_t h, uint16_t offset, uint16_t count, uint8_t visible);
+void drawHorizontalScrollbar(coord_t x, coord_t y, coord_t w, uint16_t offset, uint16_t count, uint8_t visible);
+void drawProgressScreen(const char * title, const char * message, int num, int den);
+void drawShadow(coord_t x, coord_t y, coord_t w, coord_t h);
+void drawTrimSquare(coord_t x, coord_t y);
+void drawHorizontalTrimPosition(coord_t x, coord_t y, int16_t dir);
+void drawVerticalTrimPosition(coord_t x, coord_t y, int16_t dir);
+void drawVerticalSlider(coord_t x, coord_t y, int len, int val, int min, int max, uint8_t steps, uint32_t options);
+void drawHorizontalSlider(coord_t x, coord_t y, int len, int val, int min, int max, uint8_t steps, uint32_t options);
+void drawSlider(coord_t x, coord_t y, int len, int val, int min, int max, uint8_t steps, uint32_t options);
+#define drawStatusLine(...)
+
+void drawGVarValue(coord_t x, coord_t y, uint8_t gvar, gvar_t value, LcdFlags flags);
+
+#if defined(GVARS)
+int16_t editGVarFieldValue(coord_t x, coord_t y, int16_t value, int16_t min, int16_t max, LcdFlags attr, uint8_t editflags, event_t event);
+#else
+int16_t editGVarFieldValue(coord_t x, coord_t y, int16_t value, int16_t min, int16_t max, LcdFlags attr, event_t event);
 #endif
 
-void drawStatusText(BitmapBuffer * dc, const char * text);
-void drawVerticalScrollbar(BitmapBuffer * dc, coord_t x, coord_t y, coord_t h, uint16_t offset, uint16_t count, uint8_t visible);
-void drawProgressScreen(BitmapBuffer * dc, const char * title, const char * message, int num, int den);
-void drawTrimSquare(BitmapBuffer * dc, coord_t x, coord_t y);
-void drawHorizontalTrimPosition(BitmapBuffer * dc, coord_t x, coord_t y, int16_t dir);
-void drawVerticalTrimPosition(BitmapBuffer * dc, coord_t x, coord_t y, int16_t dir);
-void drawVerticalSlider(BitmapBuffer * dc, coord_t x, coord_t y, int len, int val, int min, int max, uint8_t steps, uint32_t options);
-void drawHorizontalSlider(BitmapBuffer * dc, coord_t x, coord_t y, int len, int val, int min, int max, uint8_t steps, uint32_t options);
-void drawSlider(coord_t x, coord_t y, int len, int val, int min, int max, uint8_t steps, uint32_t options);
-void drawValueOrGVar(BitmapBuffer * dc, coord_t x, coord_t y, gvar_t value, gvar_t vmin, gvar_t vmax, LcdFlags flags = 0);
-void drawGVarValue(BitmapBuffer * dc, coord_t x, coord_t y, uint8_t gvar, gvar_t value, LcdFlags flags = 0);
-void drawTimer(BitmapBuffer * dc, coord_t x, coord_t y, int32_t tme, LcdFlags flags = 0);
-void drawSourceValue(BitmapBuffer * dc, coord_t x, coord_t y, source_t source, LcdFlags flags = 0);
-void drawSourceCustomValue(BitmapBuffer * dc, coord_t x, coord_t y, source_t source, int32_t value, LcdFlags flags);
-void drawSensorCustomValue(BitmapBuffer * dc, coord_t x, coord_t y, uint8_t sensor, int32_t value, LcdFlags flags = 0);
-void drawGPSPosition(BitmapBuffer * dc, coord_t x, coord_t y, int32_t longitude, int32_t latitude, LcdFlags flags = 0);
-void drawDate(BitmapBuffer * dc, coord_t x, coord_t y, TelemetryItem & telemetryItem, LcdFlags flags = 0);
-void drawValueWithUnit(BitmapBuffer * dc, coord_t x, coord_t y, int val, uint8_t unit, LcdFlags flags = 0);
-void drawHexNumber(BitmapBuffer * dc, coord_t x, coord_t y, uint32_t val, LcdFlags flags = 0);
-inline void drawChn(BitmapBuffer * dc, coord_t x, coord_t y, uint8_t idx, LcdFlags flags)
-{
-  drawSource(dc, x, y, MIXSRC_CH1 + idx - 1, flags);
-}
-
 // Screen templates
+void drawMenuTemplate(const char * title, uint8_t icon, const uint8_t * icons=nullptr, uint32_t options=0);
 void drawSplash();
 void drawSleepBitmap();
 void drawShutdownAnimation(uint32_t duration, uint32_t totalDuration, const char * message);
 
 // Main view standard widgets
+void drawTopBar();
 void drawMainPots();
 void drawTrims(uint8_t flightMode);
+
+void drawReceiverName(coord_t x, coord_t y, uint8_t moduleIdx, uint8_t receiverIdx, LcdFlags flags);
 
 #endif // _DRAW_FUNCTIONS_H_

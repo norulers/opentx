@@ -26,7 +26,7 @@ const uint8_t LBM_LAYOUT_2x2[] = {
 
 const ZoneOption OPTIONS_LAYOUT_2x2[] = {
   { STR_TOP_BAR, ZoneOption::Bool },
-  { nullptr, ZoneOption::Bool }
+  { NULL, ZoneOption::Bool }
 };
 
 class Layout2x2: public Layout
@@ -37,23 +37,23 @@ class Layout2x2: public Layout
     {
     }
 
-    void create() override
+    virtual void create()
     {
       Layout::create();
-      persistentData->options[0] = ZoneOptionValueTyped { ZOV_Bool, OPTION_VALUE_BOOL(true) };
+      persistentData->options[0].boolValue = true;
     }
 
-    unsigned int getZonesCount() const override
+    virtual unsigned int getZonesCount() const
     {
       return 4;
     }
 
-    rect_t getZone(unsigned int index) const override
+    virtual Zone getZone(unsigned int index) const
     {
-      rect_t zone;
+      Zone zone;
       zone.w = (LCD_W-3*10) / 2;
       zone.x = (index & 1) ? 20 + zone.w : 10;
-      if (persistentData->options[0].value.boolValue) {
+      if (persistentData->options[0].boolValue) {
         zone.h = (LCD_H-MENU_HEADER_HEIGHT-3*10) / 2;
         zone.y = MENU_HEADER_HEIGHT + 10;
       }
@@ -67,18 +67,18 @@ class Layout2x2: public Layout
       return zone;
     }
 
-//    virtual void refresh();
+    virtual void refresh();
 };
 
-//void Layout2x2::refresh()
-//{
-//  theme->drawBackground();
-//
-//  if (persistentData->options[0].value.boolValue) {
-//    drawTopBar();
-//  }
-//
-//  Layout::refresh();
-//}
+void Layout2x2::refresh()
+{
+  theme->drawBackground();
 
-BaseLayoutFactory<Layout2x2> layout2x2("Layout2x2", "2 x 2", LBM_LAYOUT_2x2, OPTIONS_LAYOUT_2x2);
+  if (persistentData->options[0].boolValue) {
+    drawTopBar();
+  }
+
+  Layout::refresh();
+}
+
+BaseLayoutFactory<Layout2x2> layout2x2("Layout2x2", LBM_LAYOUT_2x2, OPTIONS_LAYOUT_2x2);

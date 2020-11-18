@@ -18,14 +18,37 @@
  * GNU General Public License for more details.
  */
 
-#include "model_inputs.h"
+#include <stdio.h>
 #include "opentx.h"
-#include "gvar_numberedit.h"
 
-#define SET_DIRTY() storageDirty(EE_MODEL)
+#define EXPO_ONE_2ND_COLUMN 115
 
-#define PASTE_BEFORE    -2
-#define PASTE_AFTER     -1
+int expoFn(int x)
+{
+  ExpoData * ed = expoAddress(s_currIdx);
+  int16_t anas[MAX_INPUTS] = {0};
+  applyExpos(anas, e_perout_mode_inactive_flight_mode, ed->srcRaw, x);
+  return anas[ed->chn];
+}
+
+int getExposLinesCount()
+{
+  int lastch = -1;
+  uint8_t count = MAX_INPUTS;
+  for (int i=0; i<MAX_EXPOS; i++) {
+    bool valid = EXPO_VALID(expoAddress(i));
+    if (!valid)
+      break;
+    int ch = expoAddress(i)->chn;
+    if (ch == lastch) {
+      count++;
+    }
+    else {
+      lastch = ch;
+    }
+  }
+  return count;
+}
 
 uint8_t getExposCount()
 {
@@ -50,32 +73,6 @@ bool reachExposLimit()
   return false;
 }
 
-void copyExpo(uint8_t source, uint8_t dest, int8_t input)
-{
-  pauseMixerCalculations();
-  ExpoData sourceExpo;
-  memcpy(&sourceExpo, expoAddress(source), sizeof(ExpoData));
-  ExpoData * expo = expoAddress(dest);
-
-  if(input == PASTE_AFTER) {
-    memmove(expo+2, expo+1, (MAX_EXPOS-(source+1))*sizeof(ExpoData));
-    memcpy(expo+1, &sourceExpo, sizeof(ExpoData));
-    (expo+1)->chn = (expo)->chn;
-  }
-  else if(input == PASTE_BEFORE) {
-    memmove(expo+1, expo, (MAX_EXPOS-(source+1))*sizeof(ExpoData));
-    memcpy(expo, &sourceExpo, sizeof(ExpoData));
-    expo->chn = (expo+1)->chn;
-  }
-  else {
-    memmove(expo+1, expo, (MAX_EXPOS-(source+1))*sizeof(ExpoData));
-    memcpy(expo, &sourceExpo, sizeof(ExpoData));
-    expo->chn = input;
-  }
-  resumeMixerCalculations();
-  storageDirty(EE_MODEL);
-}
-
 void deleteExpo(uint8_t idx)
 {
   pauseMixerCalculations();
@@ -90,436 +87,457 @@ void deleteExpo(uint8_t idx)
   storageDirty(EE_MODEL);
 }
 
-class InputEditWindow: public Page {
-  public:
-    InputEditWindow(int8_t input, uint8_t index):
-      Page(ICON_MODEL_INPUTS),
-      input(input),
-      index(index),
-      preview(this, {INPUT_EDIT_CURVE_LEFT, INPUT_EDIT_CURVE_TOP, INPUT_EDIT_CURVE_WIDTH, INPUT_EDIT_CURVE_HEIGHT},
-              [=](int x) -> int {
-                ExpoData * line = expoAddress(index);
-                int16_t anas[MAX_INPUTS] = {0};
-                applyExpos(anas, e_perout_mode_inactive_flight_mode, line->srcRaw, x);
-                return anas[line->chn];
-              },
-              [=]() -> int {
-                return getValue(expoAddress(index)->srcRaw);
-              })
-    {
-#if LCD_W > LCD_H
-      body.setWidth(LCD_W - 170);
-#else
-      body.setRect({0, INPUT_EDIT_CURVE_TOP + INPUT_EDIT_CURVE_HEIGHT, LCD_W, LCD_H - INPUT_EDIT_CURVE_TOP - INPUT_EDIT_CURVE_HEIGHT});
-#endif
-      buildBody(&body);
-      buildHeader(&header);
-    }
-
-    ~InputEditWindow() override
-    {
-      preview.detach();
-    }
-
-  protected:
-    uint8_t input;
-    uint8_t index;
-    Curve preview;
-    Choice * trimChoice = nullptr;
-    FormGroup * curveParamField = nullptr;
-
-    void buildHeader(Window * window)
-    {
-      new StaticText(window, {PAGE_TITLE_LEFT, PAGE_TITLE_TOP, LCD_W - PAGE_TITLE_LEFT, PAGE_LINE_HEIGHT}, STR_MENUINPUTS, 0, MENU_COLOR);
-      new StaticText(window, {PAGE_TITLE_LEFT, PAGE_TITLE_TOP + PAGE_LINE_HEIGHT, LCD_W - PAGE_TITLE_LEFT, PAGE_LINE_HEIGHT}, getSourceString(MIXSRC_FIRST_INPUT + input), 0, MENU_COLOR);
-    }
-
-    // TODO share this code with MIXER
-    void updateCurveParamField(ExpoData * line)
-    {
-      curveParamField->clear();
-
-      const rect_t rect = {0, 0, curveParamField->width(), curveParamField->height()};
-
-      switch (line->curve.type) {
-        case CURVE_REF_DIFF:
-        case CURVE_REF_EXPO:
-        {
-          GVarNumberEdit * edit = new GVarNumberEdit(curveParamField, rect, -100, 100, GET_SET_DEFAULT(line->curve.value));
-          edit->setSuffix("%");
-          break;
-        }
-
-        case CURVE_REF_FUNC:
-          new Choice(curveParamField, rect, STR_VCURVEFUNC, 0, CURVE_BASE - 1, GET_SET_DEFAULT(line->curve.value));
-          break;
-
-        case CURVE_REF_CUSTOM:
-        {
-          auto choice = new Choice(curveParamField, rect, -MAX_CURVES, MAX_CURVES, GET_SET_DEFAULT(line->curve.value));
-          choice->setTextHandler([](int value) {
-              return getCurveString(value);
-          });
-          break;
-        }
-      }
-    }
-
-    void buildBody(FormWindow * window)
-    {
-      FormGridLayout grid;
-      grid.setLabelWidth(INPUT_EDIT_LABELS_WIDTH);
-      grid.spacer(PAGE_PADDING);
-
-      ExpoData * line = expoAddress(index) ;
-
-#if LCD_W > LCD_H
-      grid.setMarginRight(180);
-#endif
-
-      // Input Name
-      new StaticText(window, grid.getLabelSlot(), STR_INPUTNAME);
-      new TextEdit(window, grid.getFieldSlot(), g_model.inputNames[line->chn], sizeof(g_model.inputNames[line->chn]));
-      grid.nextLine();
-
-      // Switch
-      new StaticText(window, grid.getLabelSlot(), STR_SWITCH);
-      new SwitchChoice(window, grid.getFieldSlot(), SWSRC_FIRST_IN_MIXES, SWSRC_LAST_IN_MIXES, GET_SET_DEFAULT(line->swtch));
-      grid.nextLine();
-
-      // Side
-      new StaticText(window, grid.getLabelSlot(), STR_SIDE);
-      new Choice(window, grid.getFieldSlot(), STR_VCURVEFUNC, 1, 3,
-                 [=]() -> int16_t {
-                   return 4 - line->mode;
-                 },
-                 [=](int16_t newValue) {
-                   line->mode = 4 - newValue;
-                   SET_DIRTY();
-                 });
-      grid.nextLine();
-
-      // Name
-      new StaticText(window, grid.getLabelSlot(), STR_EXPONAME);
-      new TextEdit(window, grid.getFieldSlot(), line->name, sizeof(line->name));
-      grid.nextLine();
-
-      // Source
-      new StaticText(window, grid.getLabelSlot(), STR_SOURCE);
-      new SourceChoice(window, grid.getFieldSlot(), INPUTSRC_FIRST, INPUTSRC_LAST,
-                       GET_DEFAULT(line->srcRaw),
-                       [=] (int32_t newValue) {
-                         line->srcRaw = newValue;
-                         if (line->srcRaw > MIXSRC_Ail && line->carryTrim == TRIM_ON) {
-                           line->carryTrim = TRIM_OFF;
-                           trimChoice->invalidate();
-                         }
-                         SET_DIRTY();
-                       }
-      );
-      /* TODO telemetry current value
-      if (ed->srcRaw >= MIXSRC_FIRST_TELEM) {
-        drawSensorCustomValue(EXPO_ONE_2ND_COLUMN+75, y, (ed->srcRaw - MIXSRC_FIRST_TELEM)/3, convertTelemValue(ed->srcRaw - MIXSRC_FIRST_TELEM + 1, ed->scale), LEFT|(menuHorizontalPosition==1?attr:0));
-      } */
-      grid.nextLine();
-
-      // Scale
-      // TODO only displayed when source is telemetry + unfinished
-      new StaticText(window, grid.getLabelSlot(), STR_SCALE);
-      new NumberEdit(window, grid.getFieldSlot(), -100, 100, GET_SET_DEFAULT(line->scale));
-      grid.nextLine();
-
-      // Weight
-      new StaticText(window, grid.getLabelSlot(), STR_WEIGHT);
-      auto gvar = new GVarNumberEdit(window, grid.getFieldSlot(), -100, 100, GET_SET_DEFAULT(line->weight));
-      gvar->setSuffix("%");
-      grid.nextLine();
-
-      // Offset
-      new StaticText(window, grid.getLabelSlot(), STR_OFFSET);
-      gvar = new GVarNumberEdit(window, grid.getFieldSlot(), -100, 100, GET_SET_DEFAULT(line->offset));
-      gvar->setSuffix("%");
-      grid.nextLine();
-
-      // Trim
-      new StaticText(window, grid.getLabelSlot(), STR_TRIM);
-      trimChoice = new Choice(window, grid.getFieldSlot(), STR_VMIXTRIMS, -TRIM_OFF, -TRIM_LAST,
-                              GET_VALUE(-line->carryTrim),
-                              SET_VALUE(line->carryTrim, -newValue));
-      trimChoice->setAvailableHandler([=](int value) {
-        return value != TRIM_ON || line->srcRaw <= MIXSRC_Ail;
-      });
-      grid.nextLine();
-
-      // Curve
-      new StaticText(&body, grid.getLabelSlot(), STR_CURVE);
-      new Choice(&body, grid.getFieldSlot(2, 0), "\004DiffExpoFuncCstm", 0, CURVE_REF_CUSTOM,
-                 GET_DEFAULT(line->curve.type),
-                 [=](int32_t newValue) {
-                     line->curve.type = newValue;
-                     line->curve.value = 0;
-                     SET_DIRTY();
-                     updateCurveParamField(line);
-                 });
-      curveParamField = new FormGroup(&body, grid.getFieldSlot(2, 1), FORM_FORWARD_FOCUS);
-      updateCurveParamField(line);
-      grid.nextLine();
-
-      // Flight modes
-      new StaticText(window, grid.getLabelSlot(), STR_FLMODE);
-      for (uint8_t i=0; i<MAX_FLIGHT_MODES; i++) {
-        char fm[2] = { char('0' + i), '\0'};
-        if (i > 0 && (i % 4) == 0)
-          grid.nextLine();
-        new TextButton(window, grid.getFieldSlot(4, i % 4), fm,
-                                    [=]() -> uint8_t {
-                                        BFBIT_FLIP(line->flightModes, bfBit<uint32_t>(i));
-                                        SET_DIRTY();
-                                        return !(bfSingleBitGet(line->flightModes, i));
-                                    },
-                                    bfSingleBitGet(line->flightModes, i) ? 0 : BUTTON_CHECKED);
-      }
-      grid.nextLine();
-
-      window->setInnerHeight(grid.getWindowHeight());
-    }
-};
-
-void CommonInputOrMixButton::checkEvents()
-{
-  if (active != isActive()) {
-    invalidate();
-    active = !active;
-  }
-
-  Button::checkEvents();
-}
-
-void CommonInputOrMixButton::drawFlightModes(BitmapBuffer *dc, FlightModesType value)
-{
-  dc->drawMask(146, 2 + PAGE_LINE_HEIGHT + FIELD_PADDING_TOP, mixerSetupFlightmodeIcon, DEFAULT_COLOR);
-  coord_t x = 166;
-  for (int i = 0; i < MAX_FLIGHT_MODES; i++) {
-    char s[] = " ";
-    s[0] = '0' + i;
-    if (value & (1 << i)) {
-      dc->drawText(x, PAGE_LINE_HEIGHT + FIELD_PADDING_TOP + 2, s, FONT(XS) | TEXT_DISABLE_COLOR);
-    }
-    else {
-      dc->drawSolidFilledRect(x, PAGE_LINE_HEIGHT + FIELD_PADDING_TOP + 2, 8, 3, CHECKBOX_COLOR);
-      dc->drawText(x, PAGE_LINE_HEIGHT + FIELD_PADDING_TOP + 2, s, FONT(XS));
-    }
-    x += 8;
-  }
-}
-
-void CommonInputOrMixButton::paint(BitmapBuffer * dc)
-{
-  if (active)
-    dc->drawSolidFilledRect(2, 2, rect.w - 4, rect.h - 4, HIGHLIGHT_COLOR);
-  paintBody(dc);
-  dc->drawSolidRect(0, 0, rect.w, rect.h, 2, hasFocus() ? CHECKBOX_COLOR : DISABLE_COLOR);
-}
-
-class InputLineButton : public CommonInputOrMixButton {
-  public:
-    InputLineButton(FormGroup * parent, const rect_t & rect, uint8_t index):
-      CommonInputOrMixButton(parent, rect, index)
-    {
-      const ExpoData & line = g_model.expoData[index];
-      if (line.swtch || line.curve.value != 0 || line.flightModes) {
-        setHeight(height() + PAGE_LINE_HEIGHT);
-      }
-    }
-
-    bool isActive() override
-    {
-      return isExpoActive(index);
-    }
-
-    void paintBody(BitmapBuffer * dc) override
-    {
-      const ExpoData & line = g_model.expoData[index];
-
-      // first line ...
-      drawValueOrGVar(dc, FIELD_PADDING_LEFT, FIELD_PADDING_TOP, line.weight, -100, 100);
-      drawSource(dc, 60, FIELD_PADDING_TOP, line.srcRaw);
-
-      if (line.name[0]) {
-        dc->drawMask(146, 2 + FIELD_PADDING_TOP, mixerSetupLabelIcon, DEFAULT_COLOR);
-        dc->drawSizedText(166, FIELD_PADDING_TOP, line.name, sizeof(line.name));
-      }
-
-      // second line ...
-      if (line.swtch) {
-        dc->drawMask(3, PAGE_LINE_HEIGHT + FIELD_PADDING_TOP + 2, mixerSetupSwitchIcon, DEFAULT_COLOR);
-        drawSwitch(dc, 21, PAGE_LINE_HEIGHT + FIELD_PADDING_TOP, line.swtch);
-      }
-
-      if (line.curve.value != 0 ) {
-        dc->drawMask(60, PAGE_LINE_HEIGHT + FIELD_PADDING_TOP, mixerSetupCurveIcon, DEFAULT_COLOR);
-        drawCurveRef(dc, 80, PAGE_LINE_HEIGHT + FIELD_PADDING_TOP, line.curve);
-      }
-
-      if (line.flightModes) {
-        drawFlightModes(dc, line.flightModes);
-      }
-    }
-};
-
-ModelInputsPage::ModelInputsPage():
-  PageTab(STR_MENUINPUTS, ICON_MODEL_INPUTS)
-{
-}
-
-void ModelInputsPage::rebuild(FormWindow * window, int8_t focusIndex)
-{
-  coord_t scrollPosition = window->getScrollPositionY();
-  window->clear();
-  build(window, focusIndex);
-  window->setScrollPositionY(scrollPosition);
-}
-
-void ModelInputsPage::editInput(FormWindow * window, uint8_t input, uint8_t index)
-{
-  Window * editWindow = new InputEditWindow(input, index);
-  editWindow->setCloseHandler([=]() {
-    rebuild(window, index);
-  });
-}
-
-void ModelInputsPage::build(FormWindow * window, int8_t focusIndex)
-{
-  FormGridLayout grid;
-  grid.spacer(PAGE_PADDING);
-  grid.setLabelWidth(66);
-
-  Window::clearFocus();
-
-  int inputIndex = 0;
-  ExpoData * line = g_model.expoData;
-  for (uint8_t input = 0; input < MAX_INPUTS; input++) {
-    if (inputIndex < MAX_EXPOS && line->chn == input && EXPO_VALID(line)) {
-      new StaticText(window, grid.getLabelSlot(), getSourceString(MIXSRC_FIRST_INPUT + input), BUTTON_BACKGROUND, CENTERED);
-      while (inputIndex < MAX_EXPOS && line->chn == input && EXPO_VALID(line)) {
-        Button * button = new InputLineButton(window, grid.getFieldSlot(), inputIndex);
-        if (focusIndex == inputIndex)
-          button->setFocus(SET_FOCUS_DEFAULT);
-        button->setPressHandler([=]() -> uint8_t {
-          button->bringToTop();
-          Menu * menu = new Menu(window);
-          menu->addLine(STR_EDIT, [=]() {
-            editInput(window, input, inputIndex);
-          });
-          if (!reachExposLimit()) {
-            menu->addLine(STR_INSERT_BEFORE, [=]() {
-              insertExpo(inputIndex, input);
-              editInput(window, input, inputIndex);
-            });
-            menu->addLine(STR_INSERT_AFTER, [=]() {
-              insertExpo(inputIndex + 1, input);
-              editInput(window, input, inputIndex + 1);
-            });
-            menu->addLine(STR_COPY, [=]() {
-              s_copyMode = COPY_MODE;
-              s_copySrcIdx = inputIndex;
-            });
-            if (s_copyMode != 0) {
-              menu->addLine(STR_PASTE_BEFORE, [=]() {
-                copyExpo(s_copySrcIdx, inputIndex, PASTE_BEFORE);
-                if (s_copyMode == MOVE_MODE) {
-                  deleteExpo((s_copySrcIdx > inputIndex) ? s_copySrcIdx+1 : s_copySrcIdx);
-                  s_copyMode = 0;
-                }
-                rebuild(window, inputIndex);
-              });
-              menu->addLine(STR_PASTE_AFTER, [=]() {
-                copyExpo(s_copySrcIdx, inputIndex, PASTE_AFTER);
-                if (s_copyMode == MOVE_MODE) {
-                  deleteExpo((s_copySrcIdx > inputIndex) ? s_copySrcIdx+1 : s_copySrcIdx);
-                  s_copyMode = 0;
-                }
-                rebuild(window, inputIndex+1);
-              });
-            }
-          }
-          menu->addLine(STR_MOVE, [=]() {
-            s_copyMode = MOVE_MODE;
-            s_copySrcIdx = inputIndex;
-          });
-          menu->addLine(STR_DELETE, [=]() {
-            deleteExpo(inputIndex);
-            rebuild(window, -1);
-          });
-          return 0;
-        });
-
-        grid.spacer(button->height() - 2);
-
-        ++inputIndex;
-        ++line;
-      }
-
-      grid.spacer(7);
-    }
-    else {
-      auto button = new TextButton(window, grid.getLabelSlot(), getSourceString(MIXSRC_FIRST_INPUT + input));
-      if (focusIndex == inputIndex)
-        button->setFocus(SET_FOCUS_DEFAULT);
-      button->setPressHandler([=]() -> uint8_t {
-        button->bringToTop();
-        Menu * menu = new Menu(window);
-        menu->addLine(STR_EDIT, [=]() {
-          insertExpo(inputIndex, input);
-          editInput(window, input, inputIndex);
-          return 0;
-        });
-        if (!reachExposLimit()) {
-          if (s_copyMode != 0) {
-            menu->addLine(STR_PASTE, [=]() {
-              copyExpo(s_copySrcIdx, inputIndex, input);
-              if(s_copyMode == MOVE_MODE) {
-                deleteExpo((s_copySrcIdx >= inputIndex) ? s_copySrcIdx+1 : s_copySrcIdx);
-                s_copyMode = 0;
-              }
-              rebuild(window, -1);
-              return 0;
-            });
-          }
-        }
-        return 0;
-      });
-
-      grid.spacer(button->height() + 5);
-    }
-  }
-
-  Window * focus = Window::getFocus();
-  if (focus) {
-    focus->bringToTop();
-  }
-
-  grid.nextLine();
-
-  window->setInnerHeight(grid.getWindowHeight());
-}
-
-// TODO port: avoid global s_currCh on ARM boards (as done here)...
+// TODO avoid this global s_currCh on ARM boards ...
 int8_t s_currCh;
-uint8_t s_copyMode;
-int8_t s_copySrcRow;
-
-void insertExpo(uint8_t idx, uint8_t input)
+void insertExpo(uint8_t idx)
 {
   pauseMixerCalculations();
   ExpoData * expo = expoAddress(idx);
   memmove(expo+1, expo, (MAX_EXPOS-(idx+1))*sizeof(ExpoData));
   memclear(expo, sizeof(ExpoData));
-  expo->srcRaw = (input >= 4 ? MIXSRC_Rud + input : MIXSRC_Rud + channelOrder(input + 1) - 1);
+  expo->srcRaw = (s_currCh > 4 ? MIXSRC_Rud - 1 + s_currCh : MIXSRC_Rud - 1 + channelOrder(s_currCh));
   expo->curve.type = CURVE_REF_EXPO;
   expo->mode = 3; // pos+neg
-  expo->chn = input;
+  expo->chn = s_currCh - 1;
   expo->weight = 100;
   resumeMixerCalculations();
   storageDirty(EE_MODEL);
+}
+
+void copyExpo(uint8_t idx)
+{
+  pauseMixerCalculations();
+  ExpoData * expo = expoAddress(idx);
+  memmove(expo+1, expo, (MAX_EXPOS-(idx+1))*sizeof(ExpoData));
+  resumeMixerCalculations();
+  storageDirty(EE_MODEL);
+}
+
+bool swapExpos(uint8_t & idx, uint8_t up)
+{
+  ExpoData * x, * y;
+  int8_t tgt_idx = (up ? idx-1 : idx+1);
+
+  x = expoAddress(idx);
+
+  if (tgt_idx < 0) {
+    if (x->chn == 0)
+      return false;
+    x->chn--;
+    return true;
+  }
+
+  if (tgt_idx == MAX_EXPOS) {
+    if (x->chn == MAX_INPUTS-1)
+      return false;
+    x->chn++;
+    return true;
+  }
+
+  y = expoAddress(tgt_idx);
+  if (x->chn != y->chn || !EXPO_VALID(y)) {
+    if (up) {
+      if (x->chn>0) x->chn--;
+      else return false;
+    }
+    else {
+      if (x->chn<MAX_INPUTS-1) x->chn++;
+      else return false;
+    }
+    return true;
+  }
+
+  pauseMixerCalculations();
+  memswap(x, y, sizeof(ExpoData));
+  resumeMixerCalculations();
+
+  idx = tgt_idx;
+  return true;
+}
+
+enum ExposFields {
+  EXPO_FIELD_INPUT_NAME,
+  EXPO_FIELD_NAME,
+  EXPO_FIELD_SOURCE,
+  EXPO_FIELD_SCALE,
+  EXPO_FIELD_WEIGHT,
+  EXPO_FIELD_OFFSET,
+  EXPO_FIELD_CURVE,
+  CASE_FLIGHT_MODES(EXPO_FIELD_FLIGHT_MODES)
+  EXPO_FIELD_SWITCH,
+  EXPO_FIELD_SIDE,
+  EXPO_FIELD_TRIM,
+  EXPO_FIELD_MAX
+};
+
+#define CURVE_ROWS 1
+
+bool menuModelExpoOne(event_t event)
+{
+  ExpoData * ed = expoAddress(s_currIdx);
+
+  SUBMENU_WITH_OPTIONS(STR_MENUINPUTS, ICON_MODEL_INPUTS, EXPO_FIELD_MAX, OPTION_MENU_NO_FOOTER|OPTION_MENU_NO_SCROLLBAR, { 0, 0, 0, (ed->srcRaw >= MIXSRC_FIRST_TELEM ? (uint8_t)0 : (uint8_t)HIDDEN_ROW), 0, 0, CURVE_ROWS, CASE_FLIGHT_MODES((MAX_FLIGHT_MODES-1) | NAVIGATION_LINE_BY_LINE) 0 /*, ...*/});
+  lcdDrawSizedText(50, 3+FH, g_model.inputNames[ed->chn], LEN_INPUT_NAME, ZCHAR|MENU_TITLE_COLOR);
+
+  int sub = menuVerticalPosition;
+
+  coord_t y = MENU_CONTENT_TOP-FH-2;
+
+  drawFunction(expoFn, CURVE_CENTER_X, CURVE_CENTER_Y, CURVE_SIDE_WIDTH);
+  drawCurveHorizontalScale();
+  drawCurveVerticalScale(CURVE_CENTER_X-CURVE_SIDE_WIDTH - 15);
+  // those parameters are global so that they can be reused in the curve edit screen
+  s_currSrcRaw = ed->srcRaw;
+  s_currScale = ed->scale;
+  drawCursor(expoFn);
+
+  for (uint8_t k=0; k<NUM_BODY_LINES+1; k++) {
+    int i = k + menuVerticalOffset;
+    for (int j=0; j<=i; ++j) {
+      if (j<(int)DIM(mstate_tab) && mstate_tab[j] == HIDDEN_ROW) {
+        ++i;
+      }
+    }
+    LcdFlags attr = (sub==i ? (s_editMode>0 ? BLINK|INVERS : INVERS) : 0);
+    switch (i) {
+      case EXPO_FIELD_INPUT_NAME:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_INPUTNAME);
+        editName(EXPO_ONE_2ND_COLUMN, y, g_model.inputNames[ed->chn], sizeof(g_model.inputNames[ed->chn]), event, attr);
+        break;
+
+      case EXPO_FIELD_NAME:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_EXPONAME);
+        editName(EXPO_ONE_2ND_COLUMN, y, ed->name, sizeof(ed->name), event, attr);
+        break;
+
+      case EXPO_FIELD_SOURCE:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_SOURCE);
+        drawSource(EXPO_ONE_2ND_COLUMN, y, ed->srcRaw, menuHorizontalPosition==0 ? attr : 0);
+        if (attr && menuHorizontalPosition==0)
+          ed->srcRaw = checkIncDec(event, ed->srcRaw, INPUTSRC_FIRST, INPUTSRC_LAST, EE_MODEL|INCDEC_SOURCE|NO_INCDEC_MARKS, isSourceAvailableInInputs);
+        if (ed->srcRaw >= MIXSRC_FIRST_TELEM) {
+          drawSensorCustomValue(EXPO_ONE_2ND_COLUMN+75, y, (ed->srcRaw - MIXSRC_FIRST_TELEM)/3, getValue(ed->srcRaw), LEFT|(menuHorizontalPosition==1?attr:0));
+          if (attr && menuHorizontalPosition == 1) ed->scale = checkIncDec(event, ed->scale, 0, maxTelemValue(ed->srcRaw - MIXSRC_FIRST_TELEM + 1), EE_MODEL);
+        }
+        else if (attr) {
+          menuHorizontalPosition = 0;
+        }
+        break;
+
+      case EXPO_FIELD_SCALE:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_SCALE);
+        drawSensorCustomValue(EXPO_ONE_2ND_COLUMN, y, (ed->srcRaw - MIXSRC_FIRST_TELEM)/3, convertTelemValue(ed->srcRaw - MIXSRC_FIRST_TELEM + 1, ed->scale), LEFT|attr);
+        if (attr) ed->scale = checkIncDec(event, ed->scale, 0, maxTelemValue(ed->srcRaw - MIXSRC_FIRST_TELEM + 1), EE_MODEL);
+        break;
+
+      case EXPO_FIELD_WEIGHT:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_WEIGHT);
+        ed->weight = GVAR_MENU_ITEM(EXPO_ONE_2ND_COLUMN, y, ed->weight, MIN_EXPO_WEIGHT, 100, LEFT|attr, 0, event);
+        break;
+
+      case EXPO_FIELD_OFFSET:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_OFFSET);
+        ed->offset = GVAR_MENU_ITEM(EXPO_ONE_2ND_COLUMN, y, ed->offset, -100, 100, LEFT|attr, 0, event);
+        break;
+
+      case EXPO_FIELD_CURVE:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_CURVE);
+        editCurveRef(EXPO_ONE_2ND_COLUMN, y, ed->curve, event, attr);
+        break;
+
+#if defined(FLIGHT_MODES)
+      case EXPO_FIELD_FLIGHT_MODES:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_FLMODE);
+        ed->flightModes = editFlightModes(EXPO_ONE_2ND_COLUMN, y, event, ed->flightModes, attr);
+        break;
+#endif
+
+      case EXPO_FIELD_SWITCH:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_SWITCH);
+        ed->swtch = editSwitch(EXPO_ONE_2ND_COLUMN, y, ed->swtch, attr, event);
+        break;
+
+      case EXPO_FIELD_SIDE:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_SIDE);
+        ed->mode = 4 - editChoice(EXPO_ONE_2ND_COLUMN, y, STR_VCURVEFUNC, 4-ed->mode, 1, 3, attr, event);
+        break;
+
+      case EXPO_FIELD_TRIM:
+        uint8_t not_stick = (ed->srcRaw > MIXSRC_Ail);
+        int8_t carryTrim = -ed->carryTrim;
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_TRIM);
+        lcdDrawTextAtIndex(EXPO_ONE_2ND_COLUMN, y, STR_VMIXTRIMS, (not_stick && carryTrim == 0) ? 0 : carryTrim+1, menuHorizontalPosition==0 ? attr : 0);
+        if (attr) ed->carryTrim = -checkIncDecModel(event, carryTrim, not_stick ? TRIM_ON : -TRIM_OFF, -TRIM_LAST);
+        break;
+    }
+    y += FH;
+  }
+
+  return true;
+}
+
+#define _STR_MAX(x) "/" #x
+#define STR_MAX(x) _STR_MAX(x)
+
+#define EXPO_LINE_WEIGHT_POS    125
+#define EXPO_LINE_SRC_POS       135
+#define EXPO_LINE_CURVE_POS     185
+#define EXPO_LINE_SWITCH_POS    233
+#define EXPO_LINE_SIDE_POS      275
+#define EXPO_LINE_FM_POS        295
+#define EXPO_LINE_NAME_POS      405
+#define EXPO_LINE_SELECT_POS    50
+#define EXPO_LINE_SELECT_WIDTH  (LCD_W-EXPO_LINE_SELECT_POS-15)
+
+void lineExpoSurround(coord_t y, LcdFlags flags=CURVE_AXIS_COLOR)
+{
+  lcdDrawRect(EXPO_LINE_SELECT_POS, y-INVERT_VERT_MARGIN+1, EXPO_LINE_SELECT_WIDTH, INVERT_LINE_HEIGHT, 1, s_copyMode == COPY_MODE ? SOLID : DOTTED, flags);
+}
+
+void onExposMenu(const char * result)
+{
+  uint8_t chn = expoAddress(s_currIdx)->chn + 1;
+
+  if (result == STR_EDIT) {
+    pushMenu(menuModelExpoOne);
+  }
+  else if (result == STR_INSERT_BEFORE || result == STR_INSERT_AFTER) {
+    if (!reachExposLimit()) {
+      s_currCh = chn;
+      if (result == STR_INSERT_AFTER) { s_currIdx++; menuVerticalPosition++; }
+      insertExpo(s_currIdx);
+      pushMenu(menuModelExpoOne);
+    }
+  }
+  else if (result == STR_COPY || result == STR_MOVE) {
+    s_copyMode = (result == STR_COPY ? COPY_MODE : MOVE_MODE);
+    s_copySrcIdx = s_currIdx;
+    s_copySrcCh = chn;
+    s_copySrcRow = menuVerticalPosition;
+  }
+  else if (result == STR_DELETE) {
+    deleteExpo(s_currIdx);
+  }
+}
+
+void displayExpoInfos(coord_t y, ExpoData * ed)
+{
+  drawCurveRef(EXPO_LINE_CURVE_POS, y, ed->curve);
+  if (ed->swtch) {
+    drawSwitch(EXPO_LINE_SWITCH_POS, y, ed->swtch);
+  }
+  if (ed->mode != 3) {
+    lcdDrawText(EXPO_LINE_SIDE_POS, y, ed->mode == 2 ? "\176" : "\177");
+  }
+}
+
+void displayExpoLine(coord_t y, ExpoData * ed)
+{
+  drawSource(EXPO_LINE_SRC_POS, y, ed->srcRaw);
+
+  displayExpoInfos(y, ed);
+  displayFlightModes(EXPO_LINE_FM_POS, y, ed->flightModes, 0);
+
+  if (ed->name[0]) {
+    lcdDrawSizedText(EXPO_LINE_NAME_POS, y+2, ed->name, sizeof(ed->name), ZCHAR|SMLSIZE);
+  }
+}
+
+bool menuModelExposAll(event_t event)
+{
+  int sub = menuVerticalPosition;
+
+  if (s_editMode > 0) {
+    s_editMode = 0;
+  }
+
+  uint8_t chn = expoAddress(s_currIdx)->chn + 1;
+
+  int linesCount = getExposLinesCount();
+  SIMPLE_MENU(STR_MENUINPUTS, MODEL_ICONS, menuTabModel, MENU_MODEL_INPUTS, linesCount);
+
+  switch (event) {
+    case EVT_ENTRY:
+    case EVT_ENTRY_UP:
+      s_copyMode = 0;
+      s_copyTgtOfs = 0;
+      break;
+    case EVT_KEY_LONG(KEY_EXIT):
+      if (s_copyMode && s_copyTgtOfs == 0) {
+        deleteExpo(s_currIdx);
+        killEvents(event);
+        event = 0;
+      }
+      // no break
+    case EVT_KEY_BREAK(KEY_EXIT):
+      if (s_copyMode) {
+        if (s_copyTgtOfs) {
+          // cancel the current copy / move operation
+          if (s_copyMode == COPY_MODE) {
+            deleteExpo(s_currIdx);
+          }
+          else {
+            do {
+              swapExpos(s_currIdx, s_copyTgtOfs > 0);
+              s_copyTgtOfs += (s_copyTgtOfs < 0 ? +1 : -1);
+            } while (s_copyTgtOfs != 0);
+            storageDirty(EE_MODEL);
+          }
+          menuVerticalPosition = s_copySrcRow;
+          s_copyTgtOfs = 0;
+        }
+        s_copyMode = 0;
+        event = 0;
+      }
+      break;
+    case EVT_KEY_BREAK(KEY_ENTER):
+      if ((!s_currCh || (s_copyMode && !s_copyTgtOfs)) && !READ_ONLY()) {
+        s_copyMode = (s_copyMode == COPY_MODE ? MOVE_MODE : COPY_MODE);
+        s_copySrcIdx = s_currIdx;
+        s_copySrcCh = chn;
+        s_copySrcRow = sub;
+        break;
+      }
+      // no break
+
+    case EVT_KEY_LONG(KEY_ENTER):
+      killEvents(event);
+      if (s_copyTgtOfs) {
+        s_copyMode = 0;
+        s_copyTgtOfs = 0;
+      }
+      else {
+        if (READ_ONLY()) {
+          if (!s_currCh) {
+            pushMenu(menuModelExpoOne);
+          }
+        }
+        else {
+          if (s_copyMode) s_currCh = 0;
+          if (s_currCh) {
+            if (reachExposLimit()) break;
+            insertExpo(s_currIdx);
+            pushMenu(menuModelExpoOne);
+            s_copyMode = 0;
+          }
+          else {
+            event = 0;
+            s_copyMode = 0;
+            POPUP_MENU_ADD_ITEM(STR_EDIT);
+            POPUP_MENU_ADD_ITEM(STR_INSERT_BEFORE);
+            POPUP_MENU_ADD_ITEM(STR_INSERT_AFTER);
+            POPUP_MENU_ADD_ITEM(STR_COPY);
+            POPUP_MENU_ADD_ITEM(STR_MOVE);
+            POPUP_MENU_ADD_ITEM(STR_DELETE);
+            POPUP_MENU_START(onExposMenu);
+          }
+        }
+      }
+      break;
+
+    case EVT_ROTARY_LEFT:
+    case EVT_ROTARY_RIGHT:
+      if (s_copyMode) {
+        uint8_t next_ofs = ((event==EVT_ROTARY_LEFT) ? s_copyTgtOfs - 1 : s_copyTgtOfs + 1);
+
+        if (s_copyTgtOfs==0 && s_copyMode==COPY_MODE) {
+          // insert a mix on the same channel (just above / just below)
+          if (reachExposLimit()) break;
+          copyExpo(s_currIdx);
+          if (event==EVT_ROTARY_RIGHT) s_currIdx++;
+          else if (sub-menuVerticalOffset >= 6) menuVerticalOffset++;
+        }
+        else if (next_ofs==0 && s_copyMode==COPY_MODE) {
+          // delete the mix
+          deleteExpo(s_currIdx);
+          if (event==EVT_ROTARY_LEFT) s_currIdx--;
+        }
+        else {
+          // only swap the mix with its neighbor
+          if (!swapExpos(s_currIdx, event==EVT_ROTARY_LEFT)) break;
+          storageDirty(EE_MODEL);
+        }
+
+        s_copyTgtOfs = next_ofs;
+      }
+      break;
+  }
+
+  char str[6];
+  strAppendUnsigned(strAppend(strAppendUnsigned(str, getExposCount()), "/"), MAX_EXPOS, 2);
+  lcdDrawText(MENU_TITLE_NEXT_POS, MENU_TITLE_TOP+2, str, HEADER_COLOR);
+
+  sub = menuVerticalPosition;
+  s_currCh = 0;
+  int cur = 0;
+  int i = 0;
+
+  for (int ch=1; ch<=MAX_INPUTS; ch++) {
+    ExpoData * ed;
+    coord_t y = MENU_CONTENT_TOP + (cur-menuVerticalOffset)*FH;
+    if ((i<MAX_EXPOS && (ed=expoAddress(i))->chn+1 == ch && EXPO_VALID(ed))) {
+      if (cur-menuVerticalOffset >= 0 && cur-menuVerticalOffset < NUM_BODY_LINES) {
+        drawSource(MENUS_MARGIN_LEFT, y, ch);
+      }
+      uint8_t mixCnt = 0;
+      do {
+        if (s_copyMode) {
+          if (s_copyMode == MOVE_MODE && cur-menuVerticalOffset >= 0 && cur-menuVerticalOffset < NUM_BODY_LINES && s_copySrcCh == ch && s_copyTgtOfs != 0 && i == (s_copySrcIdx + (s_copyTgtOfs<0))) {
+            lineExpoSurround(y);
+            cur++; y+=FH;
+          }
+          if (s_currIdx == i) {
+            sub = menuVerticalPosition = cur;
+            s_currCh = ch;
+          }
+        }
+        else if (sub == cur) {
+          s_currIdx = i;
+        }
+        if (cur-menuVerticalOffset >= 0 && cur-menuVerticalOffset < NUM_BODY_LINES) {
+          LcdFlags attr = ((s_copyMode || sub != cur) ? 0 : INVERS);
+
+          GVAR_MENU_ITEM(EXPO_LINE_WEIGHT_POS, y, ed->weight, MIN_EXPO_WEIGHT, 100, RIGHT | attr | (isExpoActive(i) ? BOLD : 0), 0, 0);
+          displayExpoLine(y, ed);
+
+          if (s_copyMode) {
+            if ((s_copyMode==COPY_MODE || s_copyTgtOfs == 0) && s_copySrcCh == ch && i == (s_copySrcIdx + (s_copyTgtOfs<0))) {
+              /* draw a border around the raw on selection mode (copy/move) */
+              lineExpoSurround(y);
+            }
+            if (cur == sub) {
+              /* invert the raw when it's the current one */
+              lineExpoSurround(y, ALARM_COLOR);
+            }
+          }
+        }
+        cur++; y+=FH; mixCnt++; i++; ed++;
+      } while (i<MAX_EXPOS && ed->chn+1 == ch && EXPO_VALID(ed));
+      if (s_copyMode == MOVE_MODE && cur-menuVerticalOffset >= 0 && cur-menuVerticalOffset < NUM_BODY_LINES && s_copySrcCh == ch && i == (s_copySrcIdx + (s_copyTgtOfs<0))) {
+        lineExpoSurround(y);
+        cur++; y+=FH;
+      }
+    }
+    else {
+      uint8_t attr = 0;
+      if (sub == cur) {
+        s_currIdx = i;
+        s_currCh = ch;
+        if (!s_copyMode) {
+          attr = INVERS;
+        }
+      }
+      if (cur-menuVerticalOffset >= 0 && cur-menuVerticalOffset < NUM_BODY_LINES) {
+        drawSource(MENUS_MARGIN_LEFT, y, ch, attr);
+        if (s_copyMode == MOVE_MODE && s_copySrcCh == ch) {
+          lineExpoSurround(y);
+        }
+      }
+      cur++; y+=FH;
+    }
+  }
+
+  if (sub >= linesCount-1) menuVerticalPosition = linesCount-1;
+
+  return true;
 }

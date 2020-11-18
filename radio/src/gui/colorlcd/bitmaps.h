@@ -85,7 +85,7 @@ extern BitmapBuffer * modelselWizardBackground;
 extern BitmapBuffer * calibStick;
 extern BitmapBuffer * calibStickBackground;
 extern BitmapBuffer * calibTrackpBackground;
-extern BitmapBuffer * calibRadioPict;
+extern BitmapBuffer * calibHorus;
 
 // Channels monitor bitmaps
 extern BitmapBuffer * chanMonLockedBitmap;
@@ -98,12 +98,12 @@ extern BitmapBuffer * mixerSetupOutputBitmap;
 extern BitmapBuffer * mixerSetupAddBitmap;
 extern BitmapBuffer * mixerSetupMultiBitmap;
 extern BitmapBuffer * mixerSetupReplaceBitmap;
-extern BitmapBuffer * mixerSetupLabelIcon;
-extern BitmapBuffer * mixerSetupFlightmodeIcon;
-extern BitmapBuffer * mixerSetupCurveIcon;
-extern BitmapBuffer * mixerSetupSwitchIcon;
-//extern BitmapBuffer * mixerSetupDelayIcon;
-//extern BitmapBuffer * mixerSetupSlowIcon;
-//extern BitmapBuffer * mixerSetupDelaySlowIcon;
+extern BitmapBuffer * mixerSetupLabelBitmap;
+extern BitmapBuffer * mixerSetupFlightmodeBitmap;
+extern BitmapBuffer * mixerSetupCurveBitmap;
+extern BitmapBuffer * mixerSetupSwitchBitmap;
+extern BitmapBuffer * mixerSetupDelayBitmap;
+extern BitmapBuffer * mixerSetupSlowBitmap;
+extern BitmapBuffer * mixerSetupDelaySlowBitmap;
 
 #endif // _BITMAPS_H_

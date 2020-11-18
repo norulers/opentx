@@ -25,7 +25,7 @@ class ModelBitmapWidget: public Widget
   public:
     ModelBitmapWidget(const WidgetFactory * factory, const Zone & zone, Widget::PersistentData * persistentData):
       Widget(factory, zone, persistentData),
-      buffer(nullptr),
+      buffer(NULL),
       deps_hash(0)
     {
     }
@@ -48,7 +48,7 @@ class ModelBitmapWidget: public Widget
           buffer->drawFilledRect(0, 0, zone.w, zone.h, SOLID, MAINVIEW_PANES_COLOR | OPACITY(5));
           static BitmapBuffer * icon = BitmapBuffer::loadMask(getThemePath("mask_menu_model.png"));
           buffer->drawMask(6, 4, icon, MAINVIEW_GRAPHICS_COLOR);
-          buffer->drawSizedText(45, 10, g_model.header.name, LEN_MODEL_NAME, ZCHAR | FONT(XS));
+          buffer->drawSizedText(45, 10, g_model.header.name, LEN_MODEL_NAME, ZCHAR | SMLSIZE);
           buffer->drawSolidFilledRect(39, 27, zone.w - 48, 2, MAINVIEW_GRAPHICS_COLOR);
           if (bitmap) {
             buffer->drawScaledBitmap(bitmap, 0, 38, zone.w, zone.h - 38);
@@ -83,5 +83,5 @@ class ModelBitmapWidget: public Widget
     uint32_t deps_hash;
 };
 
-BaseWidgetFactory<ModelBitmapWidget> modelBitmapWidget("ModelBmp", nullptr);
+BaseWidgetFactory<ModelBitmapWidget> modelBitmapWidget("ModelBmp", NULL);
 const WidgetFactory * defaultWidget = &modelBitmapWidget;

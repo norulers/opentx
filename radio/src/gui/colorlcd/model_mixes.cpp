@@ -18,24 +18,36 @@
  * GNU General Public License for more details.
  */
 
-#include "model_mixes.h"
 #include "opentx.h"
-#include "libopenui.h"
-#include "bitfield.h"
-#include "model_inputs.h"
-#include "gvar_numberedit.h"
+#include <stdio.h>
 
-#define SET_DIRTY()     storageDirty(EE_MODEL)
+void displayMixStatus(uint8_t channel);
 
-#define PASTE_BEFORE    -2
-#define PASTE_AFTER     -1
+int getMixesLinesCount()
+{
+  int lastch = -1;
+  uint8_t count = MAX_OUTPUT_CHANNELS;
+  for (int i=0; i<MAX_MIXERS; i++) {
+    bool valid = mixAddress(i)->srcRaw;
+    if (!valid)
+      break;
+    int ch = mixAddress(i)->destCh;
+    if (ch == lastch) {
+      count++;
+    }
+    else {
+      lastch = ch;
+    }
+  }
+  return count;
+}
 
 uint8_t getMixesCount()
 {
   uint8_t count = 0;
-  uint8_t ch;
+  uint8_t ch ;
 
-  for (int i = MAX_MIXERS - 1; i >= 0; i--) {
+  for (int i=MAX_MIXERS-1; i>=0; i--) {
     ch = mixAddress(i)->srcRaw;
     if (ch != 0) {
       count++;
@@ -53,235 +65,26 @@ bool reachMixesLimit()
   return false;
 }
 
-class MixEditWindow : public Page {
-  public:
-    MixEditWindow(int8_t channel, uint8_t mixIndex) :
-      Page(ICON_MODEL_MIXER),
-      channel(channel),
-      mixIndex(mixIndex)
-    {
-      buildBody(&body);
-      buildHeader(&header);
-    }
-
-  protected:
-    uint8_t channel;
-    uint8_t mixIndex;
-    FormGroup * curveParamField = nullptr;
-
-    void buildHeader(Window * window)
-    {
-      new StaticText(window, {PAGE_TITLE_LEFT, PAGE_TITLE_TOP, LCD_W - PAGE_TITLE_LEFT, PAGE_LINE_HEIGHT}, STR_MIXES, 0, MENU_COLOR);
-      new StaticText(window, {PAGE_TITLE_LEFT, PAGE_TITLE_TOP + PAGE_LINE_HEIGHT, LCD_W - PAGE_TITLE_LEFT, PAGE_LINE_HEIGHT}, getSourceString(MIXSRC_CH1 + channel), 0, MENU_COLOR);
-    }
-
-    void buildBody(FormWindow * window)
-    {
-      FormGridLayout grid;
-      grid.spacer(8);
-
-      MixData * mix = mixAddress(mixIndex);
-
-      // Mix name
-      new StaticText(window, grid.getLabelSlot(), STR_MIXNAME);
-      new TextEdit(window, grid.getFieldSlot(), mix->name, sizeof(mix->name));
-      grid.nextLine();
-
-      // Source
-      new StaticText(window, grid.getLabelSlot(), STR_SOURCE);
-      new SourceChoice(window, grid.getFieldSlot(), 0, MIXSRC_LAST, GET_SET_DEFAULT(mix->srcRaw));
-      grid.nextLine();
-
-      // Weight
-      new StaticText(window, grid.getLabelSlot(), STR_WEIGHT);
-      auto gvar = new GVarNumberEdit(window, grid.getFieldSlot(), MIX_WEIGHT_MIN, MIX_WEIGHT_MAX, GET_SET_DEFAULT(mix->weight));
-      gvar->setSuffix("%");
-      grid.nextLine();
-
-      // Offset
-      new StaticText(window, grid.getLabelSlot(), STR_OFFSET);
-      gvar = new GVarNumberEdit(window, grid.getFieldSlot(), MIX_OFFSET_MIN, MIX_OFFSET_MAX, GET_SET_DEFAULT(mix->offset));
-      gvar->setSuffix("%");
-      grid.nextLine();
-
-      // Trim
-      new StaticText(window, grid.getLabelSlot(), STR_TRIM);
-      new CheckBox(window, grid.getFieldSlot(), GET_SET_INVERTED(mix->carryTrim));
-      grid.nextLine();
-
-      // Curve
-      new StaticText(&body, grid.getLabelSlot(), STR_CURVE);
-      new Choice(&body, grid.getFieldSlot(2, 0), "\004DiffExpoFuncCstm", 0, CURVE_REF_CUSTOM,
-                 GET_DEFAULT(mix->curve.type),
-                 [=](int32_t newValue) {
-                     mix->curve.type = newValue;
-                     mix->curve.value = 0;
-                     SET_DIRTY();
-                     updateCurveParamField(mix);
-                 });
-      curveParamField = new FormGroup(&body, grid.getFieldSlot(2, 1), FORM_FORWARD_FOCUS);
-      updateCurveParamField(mix);
-      grid.nextLine();
-
-      // Flight modes
-      new StaticText(window, grid.getLabelSlot(), STR_FLMODE);
-      for (uint8_t i = 0; i < MAX_FLIGHT_MODES; i++) {
-        char fm[2] = {char('0' + i), '\0'};
-        if (i > 0 && (i % 4) == 0)
-          grid.nextLine();
-        new TextButton(window, grid.getFieldSlot(4, i % 4), fm,
-                       [=]() -> uint8_t {
-                         BFBIT_FLIP(mix->flightModes, bfBit<uint8_t >(i));
-                         SET_DIRTY();
-                         return !(bfSingleBitGet(mix->flightModes, i));
-                       },
-                       bfSingleBitGet(mix->flightModes, i) ? 0 : BUTTON_CHECKED);
-      }
-      grid.nextLine();
-
-      // Switch
-      new StaticText(window, grid.getLabelSlot(), STR_SWITCH);
-      new SwitchChoice(window, grid.getFieldSlot(), SWSRC_FIRST_IN_MIXES, SWSRC_LAST_IN_MIXES, GET_SET_DEFAULT(mix->swtch));
-      grid.nextLine();
-
-      // Warning
-      new StaticText(window, grid.getLabelSlot(), STR_MIXWARNING);
-      auto edit = new NumberEdit(window, grid.getFieldSlot(2, 0), 0, 3, GET_SET_DEFAULT(mix->mixWarn));
-      edit->setZeroText(STR_OFF);
-      grid.nextLine();
-
-      // Multiplex
-      new StaticText(window, grid.getLabelSlot(), STR_MULTPX);
-      new Choice(window, grid.getFieldSlot(), STR_VMLTPX, 0, 2, GET_SET_DEFAULT(mix->mltpx));
-      grid.nextLine();
-
-      // Delay up
-      new StaticText(window, grid.getLabelSlot(), STR_DELAYUP);
-      edit = new NumberEdit(window, grid.getFieldSlot(2, 0), 0, DELAY_MAX,
-                            GET_DEFAULT(mix->delayUp),
-                            SET_VALUE(mix->delayUp, newValue),
-                            0, PREC1);
-      edit->setSuffix("s");
-      grid.nextLine();
-
-      // Delay down
-      new StaticText(window, grid.getLabelSlot(), STR_DELAYDOWN);
-      edit = new NumberEdit(window, grid.getFieldSlot(2, 0), 0, DELAY_MAX,
-                            GET_DEFAULT(mix->delayDown),
-                            SET_VALUE(mix->delayDown, newValue),
-                            0, PREC1);
-      edit->setSuffix("s");
-      grid.nextLine();
-
-      // Slow up
-      new StaticText(window, grid.getLabelSlot(), STR_SLOWUP);
-      edit = new NumberEdit(window, grid.getFieldSlot(2, 0), 0, DELAY_MAX,
-                            GET_DEFAULT(mix->speedUp),
-                            SET_VALUE(mix->speedUp, newValue),
-                            0, PREC1);
-      edit->setSuffix("s");
-      grid.nextLine();
-
-      // Slow down
-      new StaticText(window, grid.getLabelSlot(), STR_SLOWDOWN);
-      edit = new NumberEdit(window, grid.getFieldSlot(2, 0), 0, DELAY_MAX,
-                            GET_DEFAULT(mix->speedDown),
-                            SET_VALUE(mix->speedDown, newValue),
-                            0, PREC1);
-      edit->setSuffix("s");
-      grid.nextLine();
-
-      window->setInnerHeight(grid.getWindowHeight());
-    }
-
-    // TODO share this code with INPUT
-    void updateCurveParamField(MixData * line)
-    {
-      curveParamField->clear();
-
-      const rect_t rect = {0, 0, curveParamField->width(), curveParamField->height()};
-
-      switch (line->curve.type) {
-        case CURVE_REF_DIFF:
-        case CURVE_REF_EXPO:
-        {
-          GVarNumberEdit * edit = new GVarNumberEdit(curveParamField, rect, -100, 100, GET_SET_DEFAULT(line->curve.value));
-          edit->setSuffix("%");
-          break;
-        }
-
-        case CURVE_REF_FUNC:
-          new Choice(curveParamField, rect, STR_VCURVEFUNC, 0, CURVE_BASE - 1, GET_SET_DEFAULT(line->curve.value));
-          break;
-
-        case CURVE_REF_CUSTOM:
-        {
-          auto choice = new Choice(curveParamField, rect, -MAX_CURVES, MAX_CURVES, GET_SET_DEFAULT(line->curve.value));
-          choice->setTextHandler([](int value) {
-              return getCurveString(value);
-          });
-          break;
-        }
-      }
-    }
-};
-
-class MixLineButton : public CommonInputOrMixButton {
-  public:
-    MixLineButton(FormGroup * parent, const rect_t & rect, uint8_t index) :
-      CommonInputOrMixButton(parent, rect, index)
-    {
-      const MixData & mix = g_model.mixData[index];
-      if (mix.swtch || mix.curve.value != 0 || mix.flightModes) {
-        setHeight(height() + PAGE_LINE_HEIGHT);
-      }
-    }
-
-    bool isActive() override
-    {
-      return isMixActive(index);
-    }
-
-    void paintBody(BitmapBuffer * dc) override
-    {
-      const MixData & line = g_model.mixData[index];
-
-      // first line ...
-      drawValueOrGVar(dc, FIELD_PADDING_LEFT, FIELD_PADDING_TOP, line.weight, MIX_WEIGHT_MIN, MIX_WEIGHT_MAX);
-      drawSource(dc, 60, FIELD_PADDING_TOP, line.srcRaw);
-
-      if (line.name[0]) {
-        dc->drawMask(146, 2 + FIELD_PADDING_TOP, mixerSetupLabelIcon, DEFAULT_COLOR);
-        dc->drawSizedText(166, FIELD_PADDING_TOP, line.name, sizeof(line.name));
-      }
-
-      // second line ...
-      if (line.swtch) {
-        dc->drawMask(3, PAGE_LINE_HEIGHT + FIELD_PADDING_TOP + 2, mixerSetupSwitchIcon, DEFAULT_COLOR);
-        drawSwitch(dc, 21, PAGE_LINE_HEIGHT + FIELD_PADDING_TOP, line.swtch);
-      }
-
-      if (line.curve.value) {
-        dc->drawMask(60, PAGE_LINE_HEIGHT + FIELD_PADDING_TOP, mixerSetupCurveIcon, DEFAULT_COLOR);
-        drawCurveRef(dc, 80, PAGE_LINE_HEIGHT + FIELD_PADDING_TOP, line.curve, 0);
-      }
-
-      if (line.flightModes) {
-        drawFlightModes(dc, line.flightModes);
-      }
-    }
-};
-
-void insertMix(uint8_t idx, uint8_t channel)
+void deleteMix(uint8_t idx)
 {
   pauseMixerCalculations();
   MixData * mix = mixAddress(idx);
-  memmove(mix + 1, mix, (MAX_MIXERS - (idx + 1)) * sizeof(MixData));
+  memmove(mix, mix+1, (MAX_MIXERS-(idx+1))*sizeof(MixData));
+  memclear(&g_model.mixData[MAX_MIXERS-1], sizeof(MixData));
+  resumeMixerCalculations();
+  storageDirty(EE_MODEL);
+}
+
+void insertMix(uint8_t idx)
+{
+  pauseMixerCalculations();
+  MixData * mix = mixAddress(idx);
+  memmove(mix+1, mix, (MAX_MIXERS-(idx+1))*sizeof(MixData));
   memclear(mix, sizeof(MixData));
-  mix->destCh = channel;
-  mix->srcRaw = channel + 1;
+  mix->destCh = s_currCh-1;
+  mix->srcRaw = s_currCh;
   if (!isSourceAvailable(mix->srcRaw)) {
-    mix->srcRaw = (channel > 3 ? MIXSRC_Rud - 1 + channel : MIXSRC_Rud - 1 + channelOrder(channel));
+    mix->srcRaw = (s_currCh > 4 ? MIXSRC_Rud - 1 + s_currCh : MIXSRC_Rud - 1 + channelOrder(s_currCh));
     while (!isSourceAvailable(mix->srcRaw)) {
       mix->srcRaw += 1;
     }
@@ -291,200 +94,19 @@ void insertMix(uint8_t idx, uint8_t channel)
   storageDirty(EE_MODEL);
 }
 
-ModelMixesPage::ModelMixesPage() :
-  PageTab(STR_MIXES, ICON_MODEL_MIXER)
-{
-}
-
-void ModelMixesPage::rebuild(FormWindow * window, int8_t focusMixIndex)
-{
-  coord_t scrollPosition = window->getScrollPositionY();
-  window->clear();
-  build(window, focusMixIndex);
-  window->setScrollPositionY(scrollPosition);
-}
-
-void ModelMixesPage::editMix(FormWindow * window, uint8_t channel, uint8_t mixIndex)
-{
-  Window * editWindow = new MixEditWindow(channel, mixIndex);
-  editWindow->setCloseHandler([=]() {
-    rebuild(window, mixIndex);
-  });
-}
-
-void ModelMixesPage::build(FormWindow * window, int8_t focusMixIndex)
-{
-  FormGridLayout grid;
-  grid.spacer(PAGE_PADDING);
-  grid.setLabelWidth(66);
-
-  Window::clearFocus();
-
-  const BitmapBuffer * const mixerMultiplexBitmap[] = {
-    mixerSetupAddBitmap,
-    mixerSetupMultiBitmap,
-    mixerSetupReplaceBitmap
-  };
-
-  int mixIndex = 0;
-  MixData * mix = g_model.mixData;
-  for (uint8_t ch = 0; ch < MAX_OUTPUT_CHANNELS; ch++) {
-    if (mixIndex < MAX_MIXERS && mix->srcRaw > 0 && mix->destCh == ch) {
-      new StaticText(window, grid.getLabelSlot(), getSourceString(MIXSRC_CH1 + ch), BUTTON_BACKGROUND, CENTERED);
-      uint8_t count = 0;
-      while (mixIndex < MAX_MIXERS && mix->srcRaw > 0 && mix->destCh == ch) {
-        Button * button = new MixLineButton(window, grid.getFieldSlot(), mixIndex);
-        if (focusMixIndex == mixIndex)
-          button->setFocus(SET_FOCUS_DEFAULT);
-        button->setPressHandler([=]() -> uint8_t {
-          button->bringToTop();
-          Menu * menu = new Menu(window);
-          menu->addLine(STR_EDIT, [=]() {
-            editMix(window, ch, mixIndex);
-          });
-          if (!reachMixesLimit()) {
-            menu->addLine(STR_INSERT_BEFORE, [=]() {
-              insertMix(mixIndex, ch);
-              editMix(window, ch, mixIndex);
-            });
-            menu->addLine(STR_INSERT_AFTER, [=]() {
-              insertMix(mixIndex + 1, ch);
-              editMix(window, ch, mixIndex + 1);
-            });
-            menu->addLine(STR_COPY, [=]() {
-              s_copyMode = COPY_MODE;
-              s_copySrcIdx =mixIndex;
-            });
-            if (s_copyMode != 0) {
-              menu->addLine(STR_PASTE_BEFORE, [=]() {
-                copyMix(s_copySrcIdx, mixIndex, PASTE_BEFORE);
-                if(s_copyMode == MOVE_MODE) {
-                  deleteMix((s_copySrcIdx > mixIndex) ? s_copySrcIdx+1 : s_copySrcIdx);
-                  s_copyMode = 0;
-                }
-                rebuild(window, mixIndex);
-              });
-              menu->addLine(STR_PASTE_AFTER, [=]() {
-                copyMix(s_copySrcIdx, mixIndex, PASTE_AFTER);
-                if(s_copyMode == MOVE_MODE) {
-                  deleteMix((s_copySrcIdx > mixIndex) ? s_copySrcIdx+1 : s_copySrcIdx);
-                  s_copyMode = 0;
-                }
-                rebuild(window, mixIndex+1);
-              });
-            }
-          }
-          menu->addLine(STR_MOVE, [=]() {
-            s_copyMode = MOVE_MODE;
-            s_copySrcIdx = mixIndex;
-          });
-          menu->addLine(STR_DELETE, [=]() {
-            deleteMix(mixIndex);
-            rebuild(window, -1);
-          });
-          return 0;
-        });
-
-        if (count++ > 0) {
-          new StaticBitmap(window, {35, button->top() + (button->height() - 18) / 2, 25, 17}, mixerMultiplexBitmap[mix->mltpx]);
-        }
-
-        grid.spacer(button->height() - 2);
-        ++mixIndex;
-        ++mix;
-      }
-
-      grid.spacer(7);
-    }
-    else {
-      auto button = new TextButton(window, grid.getLabelSlot(), getSourceString(MIXSRC_CH1 + ch));
-      if (focusMixIndex == mixIndex)
-        button->setFocus(SET_FOCUS_DEFAULT);
-      button->setPressHandler([=]() -> uint8_t {
-        button->bringToTop();
-        Menu * menu = new Menu(window);
-        menu->addLine(STR_EDIT, [=]() {
-          insertMix(mixIndex, ch);
-          editMix(window, ch, mixIndex);
-          return 0;
-        });
-        if (!reachMixesLimit()) {
-          if (s_copyMode != 0) {
-            menu->addLine(STR_PASTE, [=]() {
-              copyMix(s_copySrcIdx, mixIndex, ch);
-              if(s_copyMode == MOVE_MODE) {
-                deleteMix((s_copySrcIdx >= mixIndex) ? s_copySrcIdx+1 : s_copySrcIdx);
-                s_copyMode = 0;
-              }
-              rebuild(window, -1);
-              return 0;
-            });
-          }
-        }
-        // TODO STR_MOVE
-        return 0;
-      });
-
-      grid.spacer(button->height() + 5);
-    }
-  }
-
-  Window * focus = Window::getFocus();
-  if (focus) {
-    focus->bringToTop();
-  }
-
-  grid.nextLine();
-
-  window->setInnerHeight(grid.getWindowHeight());
-}
-
-void deleteMix(uint8_t idx)
+void copyMix(uint8_t idx)
 {
   pauseMixerCalculations();
   MixData * mix = mixAddress(idx);
-  memmove(mix, mix + 1, (MAX_MIXERS - (idx + 1)) * sizeof(MixData));
-  memclear(&g_model.mixData[MAX_MIXERS - 1], sizeof(MixData));
+  memmove(mix+1, mix, (MAX_MIXERS-(idx+1))*sizeof(MixData));
   resumeMixerCalculations();
   storageDirty(EE_MODEL);
 }
 
-void insertMix(uint8_t idx)
-{
-  insertMix(idx, s_currCh + 1);
-}
-
-void copyMix(uint8_t source, uint8_t dest, int8_t ch)
-{
-  pauseMixerCalculations();
-  MixData sourceMix;
-  memcpy(&sourceMix, mixAddress(source), sizeof(MixData));
-  MixData * mix = mixAddress(dest);
-  if(ch == PASTE_AFTER) {
-    memmove(mix+2, mix+1, (MAX_MIXERS-(source+1))*sizeof(MixData));
-    memcpy(mix+1, &sourceMix, sizeof(MixData));
-    (mix+1)->destCh = (mix)->destCh;
-  }
-  else if(ch == PASTE_BEFORE) {
-    memmove(mix+1, mix, (MAX_MIXERS-(source+1))*sizeof(MixData));
-    memcpy(mix, &sourceMix, sizeof(MixData));
-    mix->destCh = (mix+1)->destCh;
-  }
-  else {
-    memmove(mix+1, mix, (MAX_MIXERS-(source+1))*sizeof(MixData));
-    memcpy(mix, &sourceMix, sizeof(MixData));
-    mix->destCh  = ch;
-  }
-
-  //memmove(mix + 1, mix, (MAX_MIXERS - (dest + 1)) * sizeof(MixData));
-  resumeMixerCalculations();
-  storageDirty(EE_MODEL);
-}
-
-bool swapMixes(uint8_t &idx, uint8_t up)
+bool swapMixes(uint8_t & idx, uint8_t up)
 {
   MixData * x, * y;
-  int8_t tgt_idx = (up ? idx - 1 : idx + 1);
+  int8_t tgt_idx = (up ? idx-1 : idx+1);
 
   x = mixAddress(idx);
 
@@ -496,7 +118,7 @@ bool swapMixes(uint8_t &idx, uint8_t up)
   }
 
   if (tgt_idx == MAX_MIXERS) {
-    if (x->destCh == MAX_OUTPUT_CHANNELS - 1)
+    if (x->destCh == MAX_OUTPUT_CHANNELS-1)
       return false;
     x->destCh++;
     return true;
@@ -504,13 +126,13 @@ bool swapMixes(uint8_t &idx, uint8_t up)
 
   y = mixAddress(tgt_idx);
   uint8_t destCh = x->destCh;
-  if (!y->srcRaw || destCh != y->destCh) {
+  if(!y->srcRaw || destCh != y->destCh) {
     if (up) {
-      if (destCh > 0) x->destCh--;
+      if (destCh>0) x->destCh--;
       else return false;
     }
     else {
-      if (destCh < MAX_OUTPUT_CHANNELS - 1) x->destCh++;
+      if (destCh<MAX_OUTPUT_CHANNELS-1) x->destCh++;
       else return false;
     }
     return true;
@@ -521,5 +143,488 @@ bool swapMixes(uint8_t &idx, uint8_t up)
   resumeMixerCalculations();
 
   idx = tgt_idx;
+  return true;
+}
+
+enum MixFields {
+  MIX_FIELD_NAME,
+  MIX_FIELD_SOURCE,
+  MIX_FIELD_WEIGHT,
+  MIX_FIELD_OFFSET,
+  MIX_FIELD_TRIM,
+  MIX_FIELD_CURVE,
+  CASE_FLIGHT_MODES(MIX_FIELD_FLIGHT_MODE)
+  MIX_FIELD_SWITCH,
+  MIX_FIELD_WARNING,
+  MIX_FIELD_MLTPX,
+  MIX_FIELD_DELAY_UP,
+  MIX_FIELD_DELAY_DOWN,
+  MIX_FIELD_SLOW_UP,
+  MIX_FIELD_SLOW_DOWN,
+  MIX_FIELD_COUNT
+};
+
+void gvarWeightItem(coord_t x, coord_t y, MixData *md, LcdFlags attr, event_t event)
+{
+  u_int8int16_t weight;
+  MD_WEIGHT_TO_UNION(md, weight);
+  weight.word = GVAR_MENU_ITEM(x, y, weight.word, GV_RANGELARGE_WEIGHT_NEG, GV_RANGELARGE_WEIGHT, attr, 0, event);
+  MD_UNION_TO_WEIGHT(weight, md);
+}
+
+bool menuModelMixOne(event_t event)
+{
+  MixData * md2 = mixAddress(s_currIdx) ;
+
+  SUBMENU_WITH_OPTIONS(STR_MIXES, ICON_MODEL_MIXER, MIX_FIELD_COUNT, OPTION_MENU_NO_SCROLLBAR, { 0, 0, 0, 0, 0, 1, CASE_FLIGHT_MODES((MAX_FLIGHT_MODES-1) | NAVIGATION_LINE_BY_LINE) 0 /*, ...*/ });
+  putsChn(50, 3+FH, md2->destCh+1, MENU_TITLE_COLOR);
+  displayMixStatus(md2->destCh);
+
+  // The separation line between 2 columns
+  lcdDrawSolidVerticalLine(MENU_COLUMN2_X-10, DEFAULT_SCROLLBAR_Y-FH, DEFAULT_SCROLLBAR_H+5, TEXT_COLOR);
+
+  int8_t sub = menuVerticalPosition;
+  int8_t editMode = s_editMode;
+
+  for (int k=0; k<2*NUM_BODY_LINES; k++) {
+    coord_t y;
+    if (k > NUM_BODY_LINES) {
+      y = MENU_CONTENT_TOP - FH + (k-NUM_BODY_LINES)*FH;
+    }
+    else {
+      y = MENU_CONTENT_TOP - FH + k*FH;
+    }
+    int8_t i = k;
+
+    LcdFlags attr = (sub==i ? (editMode>0 ? BLINK|INVERS : INVERS) : 0);
+    switch(i) {
+      case MIX_FIELD_NAME:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_MIXNAME);
+        editName(MIXES_2ND_COLUMN, y, md2->name, sizeof(md2->name), event, attr);
+        break;
+      case MIX_FIELD_SOURCE:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_SOURCE);
+        drawSource(MIXES_2ND_COLUMN, y, md2->srcRaw, attr);
+        if (attr) CHECK_INCDEC_MODELSOURCE(event, md2->srcRaw, 1, MIXSRC_LAST);
+        break;
+
+      case MIX_FIELD_WEIGHT:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_WEIGHT);
+        gvarWeightItem(MIXES_2ND_COLUMN, y, md2, attr|LEFT, event);
+        break;
+
+      case MIX_FIELD_OFFSET:
+      {
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_OFFSET);
+        u_int8int16_t offset;
+        MD_OFFSET_TO_UNION(md2, offset);
+        offset.word = GVAR_MENU_ITEM(MIXES_2ND_COLUMN, y, offset.word, GV_RANGELARGE_OFFSET_NEG, GV_RANGELARGE_OFFSET, attr|LEFT, 0, event);
+        MD_UNION_TO_OFFSET(offset, md2);
+#if 0
+        drawOffsetBar(x+MIXES_2ND_COLUMN+22, y, md2);
+#endif
+        break;
+      }
+      case MIX_FIELD_TRIM:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_TRIM);
+        drawCheckBox(MIXES_2ND_COLUMN, y, !md2->carryTrim, attr);
+        if (attr) md2->carryTrim = !checkIncDecModel(event, !md2->carryTrim, 0, 1);
+        break;
+      case MIX_FIELD_CURVE:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_CURVE);
+        s_currSrcRaw = md2->srcRaw;
+        s_currScale = 0;
+        editCurveRef(MIXES_2ND_COLUMN, y, md2->curve, event, attr);
+        break;
+#if defined(FLIGHT_MODES)
+      case MIX_FIELD_FLIGHT_MODE:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_FLMODE);
+        md2->flightModes = editFlightModes(MIXES_2ND_COLUMN, y, event, md2->flightModes, attr);
+        break;
+#endif
+      case MIX_FIELD_SWITCH:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_SWITCH);
+        md2->swtch = editSwitch(MIXES_2ND_COLUMN, y, md2->swtch, attr, event);
+        break;
+      case MIX_FIELD_WARNING:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_MIXWARNING);
+        if (md2->mixWarn) {
+          lcdDrawNumber(MIXES_2ND_COLUMN, y, md2->mixWarn, attr|LEFT);
+        }
+        else {
+          lcdDrawText(MIXES_2ND_COLUMN, y, STR_OFF, attr);
+        }
+        if (attr) {
+          CHECK_INCDEC_MODELVAR_ZERO(event, md2->mixWarn, 3);
+        }
+        break;
+      case MIX_FIELD_MLTPX:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_MULTPX);
+        md2->mltpx = editChoice(MIXES_2ND_COLUMN, y, STR_VMLTPX, md2->mltpx, 0, 2, attr, event);
+        break;
+      case MIX_FIELD_DELAY_UP:
+        lcdDrawText(MENU_COLUMN2_X+MENUS_MARGIN_LEFT, y, STR_DELAYUP);
+        md2->delayUp = editDelay(MENU_COLUMN2_X, y, event, attr, md2->delayUp);
+        break;
+      case MIX_FIELD_DELAY_DOWN:
+        lcdDrawText(MENU_COLUMN2_X+MENUS_MARGIN_LEFT, y, STR_DELAYDOWN);
+        md2->delayDown = editDelay(MENU_COLUMN2_X, y, event, attr, md2->delayDown);
+        break;
+      case MIX_FIELD_SLOW_UP:
+        lcdDrawText(MENU_COLUMN2_X+MENUS_MARGIN_LEFT, y, STR_SLOWUP);
+        md2->speedUp = editDelay(MENU_COLUMN2_X, y, event, attr, md2->speedUp);
+        break;
+      case MIX_FIELD_SLOW_DOWN:
+        lcdDrawText(MENU_COLUMN2_X+MENUS_MARGIN_LEFT, y, STR_SLOWDOWN);
+        md2->speedDown = editDelay(MENU_COLUMN2_X, y, event, attr, md2->speedDown);
+        break;
+    }
+  }
+
+  return true;
+}
+
+#define _STR_MAX(x) "/" #x
+#define STR_MAX(x) _STR_MAX(x)
+
+#define MIX_LINE_WEIGHT_POS     105
+#define MIX_LINE_SRC_POS        120
+#define MIX_LINE_CURVE_ICON     175
+#define MIX_LINE_CURVE_POS      195
+#define MIX_LINE_SWITCH_ICON    260
+#define MIX_LINE_SWITCH_POS     280
+#define MIX_LINE_DELAY_SLOW_POS 340
+#define MIX_LINE_NAME_FM_ICON   370
+#define MIX_LINE_NAME_FM_POS    390
+#define MIX_LINE_SELECT_POS     50
+#define MIX_LINE_SELECT_WIDTH   (LCD_W-MIX_LINE_SELECT_POS-15)
+#define MIX_STATUS_BAR_W        130
+#define MIX_STATUS_BAR_H        13
+#define MIX_STATUS_CHAN_BAR     MENUS_MARGIN_LEFT + 45
+#define MIX_STATUS_ICON_MIXER   MIX_STATUS_CHAN_BAR + 140
+#define MIX_STATUS_ICON_TO      MIX_STATUS_ICON_MIXER + 20
+#define MIX_STATUS_ICON_OUTPUT  MIX_STATUS_ICON_TO + 35
+#define MIX_STATUS_OUT_NAME     MIX_STATUS_ICON_OUTPUT + 25
+#define MIX_STATUS_OUT_BAR      LCD_W - MENUS_MARGIN_LEFT - MIX_STATUS_BAR_W
+
+void lineMixSurround(coord_t y, LcdFlags flags=CURVE_AXIS_COLOR)
+{
+  lcdDrawRect(MIX_LINE_SELECT_POS, y-INVERT_VERT_MARGIN+1, MIX_LINE_SELECT_WIDTH, INVERT_LINE_HEIGHT, 1, s_copyMode == COPY_MODE ? SOLID : DOTTED, flags);
+}
+
+void onMixesMenu(const char * result)
+{
+  uint8_t chn = mixAddress(s_currIdx)->destCh + 1;
+
+  if (result == STR_EDIT) {
+    pushMenu(menuModelMixOne);
+  }
+  else if (result == STR_INSERT_BEFORE || result == STR_INSERT_AFTER) {
+    if (!reachMixesLimit()) {
+      s_currCh = chn;
+      if (result == STR_INSERT_AFTER) { s_currIdx++; menuVerticalPosition++; }
+      insertMix(s_currIdx);
+      pushMenu(menuModelMixOne);
+    }
+  }
+  else if (result == STR_COPY || result == STR_MOVE) {
+    s_copyMode = (result == STR_COPY ? COPY_MODE : MOVE_MODE);
+    s_copySrcIdx = s_currIdx;
+    s_copySrcCh = chn;
+    s_copySrcRow = menuVerticalPosition;
+  }
+  else if (result == STR_DELETE) {
+    deleteMix(s_currIdx);
+  }
+}
+
+void displayMixInfos(coord_t y, MixData *md)
+{
+  if (md->curve.value != 0 ) lcd->drawBitmap(MIX_LINE_CURVE_ICON, y + 2, mixerSetupCurveBitmap);
+  drawCurveRef(MIX_LINE_CURVE_POS, y, md->curve);
+
+  if (md->swtch) {
+    lcd->drawBitmap(MIX_LINE_SWITCH_ICON, y + 2, mixerSetupSwitchBitmap);
+    drawSwitch(MIX_LINE_SWITCH_POS, y, md->swtch);
+  }
+}
+
+void displayMixSmallFlightModes(coord_t x, coord_t y, FlightModesType value)
+{
+  for (int i=0; i<MAX_FLIGHT_MODES; i++) {
+    char s[] = " ";
+    s[0] = '0' + i;
+    if (value & (1<<i)) lcd->drawFilledRect(x, y+2, 8, 12 , SOLID, CURVE_AXIS_COLOR);
+    lcdDrawText(x, y, s, SMLSIZE);
+    x += 8;
+  }
+}
+
+void displayMixLine(coord_t y, MixData *md)
+{
+  if (md->name[0] && md->flightModes) {
+    if (SLOW_BLINK_ON_PHASE) {
+      lcd->drawBitmap(MIX_LINE_NAME_FM_ICON, y + 2, mixerSetupFlightmodeBitmap);
+      displayMixSmallFlightModes(MIX_LINE_NAME_FM_POS, y + 2, md->flightModes);
+    }
+    else {
+      lcd->drawBitmap(MIX_LINE_NAME_FM_ICON, y + 2, mixerSetupLabelBitmap);
+      lcdDrawSizedText(MIX_LINE_NAME_FM_POS, y, md->name, sizeof(md->name), ZCHAR);
+    }
+  }
+  else if (md->name[0]) {
+    lcd->drawBitmap(MIX_LINE_NAME_FM_ICON, y + 2, mixerSetupLabelBitmap);
+    lcdDrawSizedText(MIX_LINE_NAME_FM_POS, y, md->name, sizeof(md->name), ZCHAR);
+  }
+  else if (md->flightModes) {
+    lcd->drawBitmap(MIX_LINE_NAME_FM_ICON, y + 2, mixerSetupFlightmodeBitmap);
+    displayMixSmallFlightModes(MIX_LINE_NAME_FM_POS, y + 2, md->flightModes);
+  }
+  displayMixInfos(y, md);
+}
+
+void displayMixStatus(uint8_t channel)
+{
+  lcdDrawNumber(MENUS_MARGIN_LEFT, MENU_FOOTER_TOP, channel + 1, MENU_TITLE_COLOR, 0, "CH", NULL);
+  drawSingleMixerBar(MIX_STATUS_CHAN_BAR, MENU_FOOTER_TOP + 4, MIX_STATUS_BAR_W, MIX_STATUS_BAR_H, channel);
+
+  lcd->drawBitmap(MIX_STATUS_ICON_MIXER, MENU_FOOTER_TOP, mixerSetupMixerBitmap);
+  lcd->drawBitmap(MIX_STATUS_ICON_TO, MENU_FOOTER_TOP, mixerSetupToBitmap);
+  lcd->drawBitmap(MIX_STATUS_ICON_OUTPUT, MENU_FOOTER_TOP, mixerSetupOutputBitmap);
+
+  if (g_model.limitData[channel].name[0] == '\0')
+    lcdDrawNumber(MIX_STATUS_OUT_NAME, MENU_FOOTER_TOP, channel + 1, MENU_TITLE_COLOR, 0, "CH", NULL);
+  else
+    lcdDrawSizedText(MIX_STATUS_OUT_NAME, MENU_FOOTER_TOP, g_model.limitData[channel].name, sizeof(g_model.limitData[channel].name), MENU_TITLE_COLOR | LEFT | ZCHAR);
+  drawSingleOutputBar(MIX_STATUS_OUT_BAR, MENU_FOOTER_TOP + 4, MIX_STATUS_BAR_W, MIX_STATUS_BAR_H, channel);
+}
+
+bool menuModelMixAll(event_t event)
+{
+  const BitmapBuffer * mpx_mode[] = {
+    mixerSetupAddBitmap,
+    mixerSetupMultiBitmap,
+    mixerSetupReplaceBitmap
+  };
+
+
+  uint8_t sub = menuVerticalPosition;
+
+  if (s_editMode > 0) {
+    s_editMode = 0;
+  }
+
+  uint8_t chn = mixAddress(s_currIdx)->destCh + 1;
+
+  int linesCount = getMixesLinesCount();
+  SIMPLE_MENU(STR_MIXES, MODEL_ICONS, menuTabModel, MENU_MODEL_MIXES, linesCount);
+
+  switch (event) {
+    case EVT_ENTRY:
+    case EVT_ENTRY_UP:
+      s_copyMode = 0;
+      s_copyTgtOfs = 0;
+      break;
+    case EVT_KEY_LONG(KEY_EXIT):
+      if (s_copyMode && s_copyTgtOfs == 0) {
+        deleteMix(s_currIdx);
+        killEvents(event);
+        event = 0;
+      }
+      // no break
+    case EVT_KEY_BREAK(KEY_EXIT):
+      if (s_copyMode) {
+        if (s_copyTgtOfs) {
+          // cancel the current copy / move operation
+          if (s_copyMode == COPY_MODE) {
+            deleteMix(s_currIdx);
+          }
+          else {
+            do {
+              swapMixes(s_currIdx, s_copyTgtOfs > 0);
+              s_copyTgtOfs += (s_copyTgtOfs < 0 ? +1 : -1);
+            } while (s_copyTgtOfs != 0);
+            storageDirty(EE_MODEL);
+          }
+          menuVerticalPosition = s_copySrcRow;
+          s_copyTgtOfs = 0;
+        }
+        s_copyMode = 0;
+        event = 0;
+      }
+      break;
+    case EVT_KEY_BREAK(KEY_ENTER):
+      if ((!s_currCh || (s_copyMode && !s_copyTgtOfs)) && !READ_ONLY()) {
+        s_copyMode = (s_copyMode == COPY_MODE ? MOVE_MODE : COPY_MODE);
+        s_copySrcIdx = s_currIdx;
+        s_copySrcCh = chn;
+        s_copySrcRow = sub;
+        break;
+      }
+      // no break
+
+    case EVT_KEY_LONG(KEY_ENTER):
+      killEvents(event);
+      if (s_copyTgtOfs) {
+        s_copyMode = 0;
+        s_copyTgtOfs = 0;
+        return true;
+      }
+      else {
+        if (READ_ONLY()) {
+          if (!s_currCh) {
+            pushMenu(menuModelMixOne);
+          }
+        }
+        else {
+          if (s_copyMode) s_currCh = 0;
+          if (s_currCh) {
+            if (reachMixesLimit()) break;
+            insertMix(s_currIdx);
+            pushMenu(menuModelMixOne);
+            s_copyMode = 0;
+            return true;
+          }
+          else {
+            event = 0;
+            s_copyMode = 0;
+            POPUP_MENU_ADD_ITEM(STR_EDIT);
+            POPUP_MENU_ADD_ITEM(STR_INSERT_BEFORE);
+            POPUP_MENU_ADD_ITEM(STR_INSERT_AFTER);
+            POPUP_MENU_ADD_ITEM(STR_COPY);
+            POPUP_MENU_ADD_ITEM(STR_MOVE);
+            POPUP_MENU_ADD_ITEM(STR_DELETE);
+            POPUP_MENU_START(onMixesMenu);
+          }
+        }
+      }
+      break;
+
+    case EVT_ROTARY_RIGHT:
+    case EVT_ROTARY_LEFT:
+      if (s_copyMode) {
+        uint8_t next_ofs = (event==EVT_ROTARY_LEFT ? s_copyTgtOfs - 1 : s_copyTgtOfs + 1);
+
+        if (s_copyTgtOfs==0 && s_copyMode==COPY_MODE) {
+          // insert a mix on the same channel (just above / just below)
+          if (reachMixesLimit()) break;
+          copyMix(s_currIdx);
+          if (event==EVT_ROTARY_RIGHT) s_currIdx++;
+          else if (sub-menuVerticalOffset >= 6) menuVerticalOffset++;
+        }
+        else if (next_ofs==0 && s_copyMode==COPY_MODE) {
+          // delete the mix
+          deleteMix(s_currIdx);
+          if (event==EVT_ROTARY_LEFT) s_currIdx--;
+        }
+        else {
+          // only swap the mix with its neighbor
+          if (!swapMixes(s_currIdx, event==EVT_ROTARY_LEFT)) break;
+          storageDirty(EE_MODEL);
+        }
+
+        s_copyTgtOfs = next_ofs;
+      }
+      break;
+  }
+
+  char str[6];
+  strAppendUnsigned(strAppend(strAppendUnsigned(str, getMixesCount()), "/"), MAX_MIXERS, 2);
+  lcdDrawText(MENU_TITLE_NEXT_POS, MENU_TITLE_TOP+1, str, HEADER_COLOR);
+
+  sub = menuVerticalPosition;
+  s_currCh = 0;
+  int cur = 0;
+  int i = 0;
+
+  for (int ch=1; ch<=MAX_OUTPUT_CHANNELS; ch++) {
+    MixData * md;
+    coord_t y = MENU_CONTENT_TOP + (cur-menuVerticalOffset)*FH;
+    if (i<MAX_MIXERS && (md=mixAddress(i))->srcRaw && md->destCh+1 == ch) {
+      if (cur-menuVerticalOffset >= 0 && cur-menuVerticalOffset < NUM_BODY_LINES) {
+        putsChn(MENUS_MARGIN_LEFT, y, ch, 0); // show CHx
+      }
+      uint8_t mixCnt = 0;
+      do {
+        if (s_copyMode) {
+          if (s_copyMode == MOVE_MODE && cur-menuVerticalOffset >= 0 && cur-menuVerticalOffset < NUM_BODY_LINES && s_copySrcCh == ch && s_copyTgtOfs != 0 && i == (s_copySrcIdx + (s_copyTgtOfs<0))) {
+            lineMixSurround(y);
+            cur++; y+=FH;
+          }
+          if (s_currIdx == i) {
+            sub = menuVerticalPosition = cur;
+            s_currCh = ch;
+          }
+        }
+        else if (sub == cur) {
+          s_currIdx = i;
+          displayMixStatus(ch - 1);
+        }
+        if (cur-menuVerticalOffset >= 0 && cur-menuVerticalOffset < NUM_BODY_LINES) {
+          LcdFlags attr = ((s_copyMode || sub != cur) ? 0 : INVERS);
+
+          if (mixCnt > 0) {
+            lcd->drawBitmap(10, y, mpx_mode[md->mltpx]);
+          }
+
+          drawSource(MIX_LINE_SRC_POS, y, md->srcRaw);
+
+          if (mixCnt == 0 && md->mltpx == 1)
+            lcdDrawText(MIX_LINE_WEIGHT_POS, y, "MULT!", RIGHT | attr | (isMixActive(i) ? BOLD : 0));
+          else
+            gvarWeightItem(MIX_LINE_WEIGHT_POS, y, md, RIGHT | attr | (isMixActive(i) ? BOLD : 0), event);
+
+          displayMixLine(y, md);
+
+          BitmapBuffer *delayslowbmp[] = {mixerSetupSlowBitmap, mixerSetupDelayBitmap, mixerSetupDelaySlowBitmap};
+          uint8_t delayslow = 0;
+          if (md->speedDown || md->speedUp)
+            delayslow = 1;
+          if (md->delayUp || md->delayDown)
+            delayslow += 2;
+          if (delayslow)
+            lcd->drawBitmap(MIX_LINE_DELAY_SLOW_POS, y + 2, delayslowbmp[delayslow - 1]);
+
+          if (s_copyMode) {
+            if ((s_copyMode==COPY_MODE || s_copyTgtOfs == 0) && s_copySrcCh == ch && i == (s_copySrcIdx + (s_copyTgtOfs<0))) {
+              /* draw a border around the raw on selection mode (copy/move) */
+              lineMixSurround(y);
+            }
+            if (cur == sub) {
+              /* invert the raw when it's the current one */
+              lineMixSurround(y, ALARM_COLOR);
+            }
+          }
+        }
+        cur++; y+=FH; mixCnt++; i++; md++;
+      } while (i<MAX_MIXERS && md->srcRaw && md->destCh+1 == ch);
+      if (s_copyMode == MOVE_MODE && cur-menuVerticalOffset >= 0 && cur-menuVerticalOffset < NUM_BODY_LINES && s_copySrcCh == ch && i == (s_copySrcIdx + (s_copyTgtOfs<0))) {
+        lineMixSurround(y);
+        cur++; y+=FH;
+      }
+    }
+    else {
+      uint8_t attr = 0;
+      if (sub == cur) {
+        s_currIdx = i;
+        s_currCh = ch;
+        if (!s_copyMode) {
+          attr = INVERS;
+        }
+        if (g_model.limitData[ch-1].name[0] != '\0')
+          lcdDrawSizedText(MENUS_MARGIN_LEFT, MENU_FOOTER_TOP, g_model.limitData[ch-1].name, sizeof(g_model.limitData[ch-1].name), MENU_TITLE_COLOR | LEFT | ZCHAR);
+      }
+      if (cur-menuVerticalOffset >= 0 && cur-menuVerticalOffset < NUM_BODY_LINES) {
+        putsChn(MENUS_MARGIN_LEFT, y, ch, attr); // show CHx
+        if (s_copyMode == MOVE_MODE && s_copySrcCh == ch) {
+          lineMixSurround(y);
+        }
+      }
+      cur++; y+=FH;
+    }
+  }
+
+  if (sub >= linesCount-1) menuVerticalPosition = linesCount-1;
+
   return true;
 }

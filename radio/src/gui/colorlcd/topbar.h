@@ -26,20 +26,19 @@
 #define MAX_TOPBAR_ZONES               4
 #define MAX_TOPBAR_OPTIONS             1 // just because of VC++ which doesn't like 0-size arrays :(
 #define TOPBAR_ZONE_WIDTH              70
-constexpr coord_t TOPBAR_ZONE_MARGIN = 3;
-constexpr coord_t TOPBAR_HEIGHT = MENU_HEADER_HEIGHT - 2 * TOPBAR_ZONE_MARGIN;
+#define TOPBAR_ZONE_MARGIN             3
 
 class Topbar: public WidgetsContainer<MAX_TOPBAR_ZONES, MAX_TOPBAR_OPTIONS>
 {
   public:
     explicit Topbar(PersistentData * persistentData):
-      WidgetsContainer<MAX_TOPBAR_ZONES, MAX_TOPBAR_OPTIONS>({0, 0, LCD_W, TOPBAR_ZONE_WIDTH}, persistentData)
+      WidgetsContainer<MAX_TOPBAR_ZONES, MAX_TOPBAR_OPTIONS>(persistentData)
     {
     }
 
-    unsigned int getZonesCount() const override;
+    virtual unsigned int getZonesCount() const;
 
-    rect_t getZone(unsigned int index) const override;
+    virtual Zone getZone(unsigned int index) const;
 };
 
 #endif // _TOPBAR_H_

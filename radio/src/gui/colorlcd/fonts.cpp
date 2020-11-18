@@ -19,141 +19,138 @@
  */
 
 #include "opentx.h"
+#include "rle.h"
 
-const uint16_t font_xxs_specs[] = {
-#include "font_9.specs"
+#if !defined(BOOT)
+const uint16_t font_tinsize_specs[] = {
+#include "font_tinsize.specs"
 };
 
-const unsigned char font_xxs[] = {
-#include "font_9.lbm"
+const unsigned char font_tinsize[] = {
+#include "font_tinsize.lbm"
 };
 
-#if LCD_H > 272
-const uint16_t font_std_en_specs[] = {
-#include "font_17en.specs"
+const uint16_t font_smlsize_specs[] = {
+#include "font_smlsize.specs"
 };
 
-const unsigned char font_std_en[] = {
-#include "font_17en.lbm"
-};
-
-const uint16_t font_xs_specs[] = {
-#include "font_15.specs"
-};
-
-const unsigned char font_xs[] = {
-#include "font_15.lbm"
-};
-
-const uint16_t font_std_specs[] = {
-#include "font_17.specs"
-};
-
-const unsigned char font_std[] = {
-#include "font_17.lbm"
-};
-
-const uint16_t font_bold_specs[] = {
-#include "font_bold17.specs"
-};
-
-const unsigned char font_bold[] = {
-#include "font_bold17.lbm"
-};
-#else
-const uint16_t font_std_en_specs[] = {
-#include "font_16en.specs"
-};
-
-const unsigned char font_std_en[] = {
-#include "font_16en.lbm"
-};
-
-const uint16_t font_xs_specs[] = {
-#include "font_13.specs"
-};
-
-const unsigned char font_xs[] = {
-#include "font_13.lbm"
-};
-
-const uint16_t font_std_specs[] = {
-#include "font_16.specs"
-};
-
-const unsigned char font_std[] = {
-#include "font_16.lbm"
-};
-
-const uint16_t font_bold_specs[] = {
-#include "font_bold16.specs"
-};
-
-const unsigned char font_bold[] = {
-#include "font_bold16.lbm"
+const unsigned char font_smlsize[] = {
+#include "font_smlsize.lbm"
 };
 #endif
 
-const uint16_t font_l_specs[] = {
-#include "font_24.specs"
+const uint16_t font_stdsize_specs[] = {
+#include "font_stdsize.specs"
 };
 
-const unsigned char font_l[] = {
-#include "font_24.lbm"
+const unsigned char font_stdsize[] = {
+#include "font_stdsize.lbm"
 };
 
-const uint16_t font_xl_specs[] = {
-#include "font_32.specs"
+#if !defined(BOOT)
+const uint16_t font_midsize_specs[] = {
+#include "font_midsize.specs"
 };
 
-const unsigned char font_xl[] = {
-#include "font_32.lbm"
+const unsigned char font_midsize[] = {
+#include "font_midsize.lbm"
 };
 
-const uint16_t font_xxl_specs[] = {
-#include "font_64.specs"
+const uint16_t font_dblsize_specs[] = {
+#include "font_dblsize.specs"
 };
 
-const unsigned char font_xxl[] = {
-#include "font_64.lbm"
+const unsigned char font_dblsize[] = {
+#include "font_dblsize.lbm"
 };
 
-#if defined(BOOT)
-const uint16_t * const fontspecsTable[FONTS_COUNT] = { font_std_en_specs };
-const uint8_t * fontsTable[FONTS_COUNT] = { font_std_en };
-#else
-const uint16_t * const fontspecsTable[FONTS_COUNT] = { font_std_specs, font_bold_specs, font_xxs_specs, font_xs_specs, font_l_specs, font_xl_specs, font_xxl_specs };
-const uint8_t * fontsTable[FONTS_COUNT] = { font_std, font_bold, font_xxs, font_xs, font_l, font_xl, font_xxl };
+const uint16_t font_xxlsize_specs[] = {
+#include "font_xxlsize.specs"
+};
+
+const unsigned char font_xxlsize[] = {
+#include "font_xxlsize.lbm"
+};
+
+const uint16_t font_stdsizebold_specs[] = {
+#include "font_stdsizebold.specs"
+};
+
+const unsigned char font_stdsizebold[] = {
+#include "font_stdsizebold.lbm"
+};
 #endif
 
-uint8_t * decompressFont(const uint8_t * font)
+#if !defined(BOOT)
+const uint16_t * const fontspecsTable[16] = {
+  font_stdsize_specs,     font_tinsize_specs, font_smlsize_specs, font_midsize_specs, font_dblsize_specs, font_xxlsize_specs, font_stdsize_specs, font_stdsize_specs,
+  font_stdsizebold_specs, font_tinsize_specs, font_smlsize_specs, font_midsize_specs, font_dblsize_specs, font_xxlsize_specs, font_stdsize_specs, font_stdsize_specs
+};
+
+const uint8_t * fontsTable[16] = {
+  font_stdsize,     font_tinsize, font_smlsize, font_midsize, font_dblsize, font_xxlsize, font_stdsize, font_stdsize,
+  font_stdsizebold, font_tinsize, font_smlsize, font_midsize, font_dblsize, font_xxlsize, font_stdsize, font_stdsize
+};
+
+#else
+const uint16_t * const fontspecsTable[1] = { font_stdsize_specs };
+const uint8_t * fontsTable[1] = { font_stdsize };
+#endif
+
+BitmapBuffer * fontCache[2] = { NULL, NULL };
+
+BitmapBuffer * createFontCache(const uint8_t * font, LcdFlags fg, LcdFlags bg)
+{
+  coord_t width = *((uint16_t *)font);
+  coord_t height = *(((uint16_t *)font)+1);
+
+  BitmapBuffer * buffer = new BitmapBuffer(BMP_RGB565, width, height);
+  if (buffer) {
+    buffer->clear(bg);
+    buffer->drawBitmapPattern(0, 0, font, fg);
+  }
+  return buffer;
+}
+
+void loadFontCache()
+{
+  delete fontCache[0];
+  delete fontCache[1];
+  fontCache[0] = createFontCache(fontsTable[0], TEXT_COLOR, TEXT_BGCOLOR);
+  fontCache[1] = createFontCache(fontsTable[0], TEXT_INVERTED_COLOR, TEXT_INVERTED_BGCOLOR);
+}
+
+
+static uint8_t* decompressFont(const uint8_t* font)
 {
   uint16_t width = *((uint16_t *)font);
   uint16_t height = *(((uint16_t *)font)+1);
 
   size_t font_size = width * height;
-  uint8_t * dec_buf = (uint8_t *)malloc(font_size + 4);
+  uint8_t* dec_buf = (uint8_t*)malloc(font_size + 4);
 
   // copy width / height
-  memcpy(dec_buf, font,4);
+  memcpy(dec_buf,font,4);
 
-  RLEBitmap::decode(dec_buf+4, font_size, font+4);
+  rle_decode_8bit(dec_buf+4, font_size, font+4);
   return dec_buf;
 }
 
 void loadFonts()
 {
-  static bool fontsLoaded = false;
-  if (fontsLoaded)
-    return;
+  static bool fonts_loaded = false;
+  if (fonts_loaded) return;
 
-#if defined(BOOT)
-  fontsTable[0] = decompressFont(fontsTable[0]);
-#else
-  for (int i = 0; i < FONTS_COUNT; i++) {
+#if !defined(BOOT)
+  int i=0;
+  for (; i<9; i++)
     fontsTable[i] = decompressFont(fontsTable[i]);
-  }
+
+  for (; i<16; i++)
+    fontsTable[i] = fontsTable[i-9];
+#else
+  fontsTable[0] = decompressFont(fontsTable[0]);
 #endif
 
-  fontsLoaded = true;
+  fonts_loaded = true;
 }

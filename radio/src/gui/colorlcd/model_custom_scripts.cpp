@@ -25,11 +25,11 @@ void onModelCustomScriptMenu(const char *result)
   ScriptData &sd = g_model.scriptsData[s_currIdx];
 
   if (result == STR_UPDATE_LIST) {
-    if (!sdListFiles(SCRIPTS_MIXES_PATH, SCRIPTS_EXT, sizeof(sd.file), nullptr)) {
+    if (!sdListFiles(SCRIPTS_MIXES_PATH, SCRIPTS_EXT, sizeof(sd.file), NULL)) {
       POPUP_WARNING(STR_NO_SCRIPTS_ON_SD);
     }
   }
-  else {
+  else if (result != STR_EXIT) {
     // The user choosed a lua file in the list
     copySelection(sd.file, result, sizeof(sd.file));
     memset(sd.inputs, 0, sizeof(sd.inputs));
@@ -108,7 +108,7 @@ bool menuModelCustomScriptOne(event_t event)
   }
 
   if (scriptInputsOutputs[s_currIdx].outputsCount > 0) {
-    lcdDrawSolidVerticalLine(SCRIPT_ONE_3RD_COLUMN_POS-4, DEFAULT_SCROLLBAR_Y, DEFAULT_SCROLLBAR_H+5, DEFAULT_COLOR);
+    lcdDrawSolidVerticalLine(SCRIPT_ONE_3RD_COLUMN_POS-4, DEFAULT_SCROLLBAR_Y, DEFAULT_SCROLLBAR_H+5, TEXT_COLOR);
     // lcdDrawText(SCRIPT_ONE_3RD_COLUMN_POS, FH+1, STR_OUTPUTS);
 
     for (int i=0; i<scriptInputsOutputs[s_currIdx].outputsCount; i++) {
@@ -157,7 +157,7 @@ bool menuModelCustomScripts(event_t event)
           lcdDrawText(SCRIPTS_COLUMN_STATE, y, "(killed)");
           break;
         default:
-          lcdDrawNumber(SCRIPTS_COLUMN_STATE, y, luaGetCpuUsed(scriptIndex), LEFT|DEFAULT_COLOR, 0, nullptr, "%");
+          lcdDrawNumber(SCRIPTS_COLUMN_STATE, y, luaGetCpuUsed(scriptIndex), LEFT|TEXT_COLOR, 0, NULL, "%");
           break;
       }
       scriptIndex++;

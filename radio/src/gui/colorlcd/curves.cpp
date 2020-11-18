@@ -19,33 +19,32 @@
  */
 
 #include "opentx.h"
-#include "font.h"
 
 coord_t getCurveYCoord(FnFuncP fn, int x, int width)
 {
   return limit(-width, -divRoundClosest(fn(divRoundClosest(x * RESX, width)) * width, RESX), +width);
 }
 
-void drawFunction(BitmapBuffer * dc, FnFuncP fn, int x, int y, int width)
+void drawFunction(FnFuncP fn, int x, int y, int width)
 {
   int left = x - width;
   int right = x + width;
 
   // Axis
-  dc->drawSolidHorizontalLine(left, y, width*2+1, DISABLE_COLOR);
-  dc->drawSolidVerticalLine(x, y-width, width*2, DISABLE_COLOR);
+  lcdDrawSolidHorizontalLine(left, y, width*2+1, CURVE_AXIS_COLOR);
+  lcdDrawSolidVerticalLine(x, y-width, width*2, CURVE_AXIS_COLOR);
 
   // Extra lines
-  dc->drawVerticalLine(left+width/2, y-width, width*2, STASHED, DISABLE_COLOR);
-  dc->drawVerticalLine(right-width/2, y-width, width*2, STASHED, DISABLE_COLOR);
-  dc->drawHorizontalLine(left, y-width/2, width*2+1, STASHED, DISABLE_COLOR);
-  dc->drawHorizontalLine(left, y+width/2, width*2+1, STASHED, DISABLE_COLOR);
+  lcdDrawVerticalLine(left+width/2, y-width, width*2, STASHED, CURVE_AXIS_COLOR);
+  lcdDrawVerticalLine(right-width/2, y-width, width*2, STASHED, CURVE_AXIS_COLOR);
+  lcdDrawHorizontalLine(left, y-width/2, width*2+1, STASHED, CURVE_AXIS_COLOR);
+  lcdDrawHorizontalLine(left, y+width/2, width*2+1, STASHED, CURVE_AXIS_COLOR);
 
   // Outside border
-  dc->drawSolidVerticalLine(left, y-width, width*2, DEFAULT_COLOR);
-  dc->drawSolidVerticalLine(right, y-width, width*2, DEFAULT_COLOR);
-  dc->drawSolidHorizontalLine(left, y-width, width*2+1, DEFAULT_COLOR);
-  dc->drawSolidHorizontalLine(left, y+width, width*2+1, DEFAULT_COLOR);
+  lcdDrawSolidVerticalLine(left, y-width, width*2, TEXT_COLOR);
+  lcdDrawSolidVerticalLine(right, y-width, width*2, TEXT_COLOR);
+  lcdDrawSolidHorizontalLine(left, y-width, width*2+1, TEXT_COLOR);
+  lcdDrawSolidHorizontalLine(left, y+width, width*2+1, TEXT_COLOR);
 
   coord_t prev_yv = (coord_t)-1;
 
@@ -54,12 +53,12 @@ void drawFunction(BitmapBuffer * dc, FnFuncP fn, int x, int y, int width)
     if (prev_yv != (coord_t)-1) {
       if (prev_yv < yv) {
         for (int y=prev_yv; y<=yv; y+=1) {
-          dc->drawBitmapPattern(x+xv-2, y-2, LBM_POINT, DEFAULT_COLOR);
+          lcdDrawBitmapPattern(x+xv-2, y-2, LBM_POINT, TEXT_COLOR);
         }
       }
       else {
         for (int y=yv; y<=prev_yv; y+=1) {
-          dc->drawBitmapPattern(x+xv-2, y-2, LBM_POINT, DEFAULT_COLOR);
+          lcdDrawBitmapPattern(x+xv-2, y-2, LBM_POINT, TEXT_COLOR);
         }
       }
     }
@@ -67,31 +66,64 @@ void drawFunction(BitmapBuffer * dc, FnFuncP fn, int x, int y, int width)
   }
 }
 
-void drawCurveVerticalScale(BitmapBuffer * dc, int x)
+void drawCurveVerticalScale(int x)
 {
   for (int i=0; i<=20; i++) {
-    dc->drawSolidHorizontalLine(x, CURVE_CENTER_Y-CURVE_SIDE_WIDTH+i*CURVE_SIDE_WIDTH/10, 10, DEFAULT_COLOR);
+    lcdDrawSolidHorizontalLine(x, CURVE_CENTER_Y-CURVE_SIDE_WIDTH+i*CURVE_SIDE_WIDTH/10, 10, TEXT_COLOR);
   }
 }
 
-void drawCurveHorizontalScale(BitmapBuffer * dc)
+void drawCurveHorizontalScale()
 {
   for (int i=0; i<=20; i++) {
-    dc->drawSolidVerticalLine(CURVE_CENTER_X-CURVE_SIDE_WIDTH+i*CURVE_SIDE_WIDTH/10, CURVE_CENTER_Y+CURVE_SIDE_WIDTH+5, 10, DEFAULT_COLOR);
+    lcdDrawSolidVerticalLine(CURVE_CENTER_X-CURVE_SIDE_WIDTH+i*CURVE_SIDE_WIDTH/10, CURVE_CENTER_Y+CURVE_SIDE_WIDTH+5, 10, TEXT_COLOR);
   }
 }
 
-void drawCurveCoord(BitmapBuffer * dc, int x, int y, const char * text, bool active)
+void drawCurveCoord(int x, int y, const char * text, bool active)
 {
-  dc->drawSolidFilledRect(x, y, CURVE_COORD_WIDTH, CURVE_COORD_HEIGHT, CURVE_CURSOR_COLOR);
-  dc->drawText(x+3+(CURVE_COORD_WIDTH - 1 - getTextWidth(text, 0, FONT(XS))) / 2, y + 1, text, LEFT|FONT(XS)|DEFAULT_BGCOLOR);
+  lcd->drawSolidFilledRect(x, y, CURVE_COORD_WIDTH, CURVE_COORD_HEIGHT, CURVE_CURSOR_COLOR);
+  lcdDrawText(x+3+(CURVE_COORD_WIDTH-1-getTextWidth(text, SMLSIZE))/2, y+1, text, LEFT|SMLSIZE|TEXT_BGCOLOR);
   if (active) {
-    dc->drawBitmapPattern(x, y, LBM_CURVE_COORD_SHADOW, DEFAULT_COLOR);
+    lcdDrawBitmapPattern(x, y, LBM_CURVE_COORD_SHADOW, TEXT_COLOR);
   }
 }
 
-void drawCurvePoint(BitmapBuffer * dc, int x, int y, LcdFlags color)
+void drawCurvePoint(int x, int y, LcdFlags color)
 {
-  dc->drawBitmapPattern(x, y, LBM_CURVE_POINT, color);
-  dc->drawBitmapPattern(x, y, LBM_CURVE_POINT_CENTER, DEFAULT_BGCOLOR);
+  lcdDrawBitmapPattern(x, y, LBM_CURVE_POINT, color);
+  lcdDrawBitmapPattern(x, y, LBM_CURVE_POINT_CENTER, TEXT_BGCOLOR);
+}
+
+void drawCursor(FnFuncP fn)
+{
+  char textx[5];
+  char texty[5];
+  int x = getValue(s_currSrcRaw);
+  if (s_currSrcRaw >= MIXSRC_FIRST_TELEM) {
+    strAppendUnsigned(textx, calcRESXto100(x));
+    // TODO drawSensorCustomValue(LCD_W-8, 6*FH, ed->srcRaw - MIXSRC_FIRST_TELEM, x);
+    if (s_currScale > 0)
+      x = (x * 1024) / convertTelemValue(s_currSrcRaw - MIXSRC_FIRST_TELEM + 1, s_currScale);
+  }
+  else {
+    strAppendSigned(textx, calcRESXto100(x));
+  }
+  
+  x = limit(-1024, x, 1024);
+  int y = limit<int>(-1024, applyCurrentCurve(x), 1024);
+  strAppendSigned(texty, calcRESXto100(y));
+
+  x = divRoundClosest(x * CURVE_SIDE_WIDTH, RESX);
+  y = CURVE_CENTER_Y + getCurveYCoord(applyCurrentCurve, x, CURVE_SIDE_WIDTH);
+
+  lcdDrawSolidFilledRect(CURVE_CENTER_X + x, CURVE_CENTER_Y - CURVE_SIDE_WIDTH, 2, 2 * CURVE_SIDE_WIDTH + 2, CURVE_CURSOR_COLOR);
+  lcdDrawSolidFilledRect(CURVE_CENTER_X - CURVE_SIDE_WIDTH-2, y-1, 2*CURVE_SIDE_WIDTH + 2, 2, CURVE_CURSOR_COLOR);
+  lcdDrawBitmapPattern(CURVE_CENTER_X + x - 4, y - 4, LBM_CURVE_POINT, CURVE_CURSOR_COLOR);
+  lcdDrawBitmapPattern(CURVE_CENTER_X + x - 4, y - 4, LBM_CURVE_POINT_CENTER, TEXT_BGCOLOR);
+
+  int left = limit(CURVE_CENTER_X - CURVE_SIDE_WIDTH, CURVE_CENTER_X - CURVE_COORD_WIDTH / 2 + x, CURVE_CENTER_X + CURVE_SIDE_WIDTH - CURVE_COORD_WIDTH + 2);
+  drawCurveCoord(left, CURVE_CENTER_Y + CURVE_SIDE_WIDTH + 2, textx);
+  int top = limit(CURVE_CENTER_Y - CURVE_SIDE_WIDTH - 1, -CURVE_COORD_HEIGHT / 2 + y, CURVE_CENTER_Y + CURVE_SIDE_WIDTH - CURVE_COORD_HEIGHT + 1);
+  drawCurveCoord(CURVE_CENTER_X-CURVE_SIDE_WIDTH - 37, top, texty);
 }

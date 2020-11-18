@@ -36,7 +36,7 @@ void drawSplash()
     bool sd_mounted = sdMounted();
     if (!sd_mounted)
       sdInit();
-    splashImg = BitmapBuffer::loadBitmap(BITMAPS_PATH "/" SPLASH_FILE);
+    splashImg = BitmapBuffer::load(BITMAPS_PATH "/" SPLASH_FILE);
     loadImgFromSD = false;
     if (!sd_mounted)
       sdDone();
@@ -45,13 +45,13 @@ void drawSplash()
   lcd->clear();
 
   if (splashImg) {
-    lcd->drawBitmap((LCD_W - splashImg->width())/2,
-                    (LCD_H - splashImg->height())/2,
+    lcd->drawBitmap((LCD_W - splashImg->getWidth())/2,
+                    (LCD_H - splashImg->getHeight())/2,
                     splashImg);
   }
   else {
-    lcd->drawBitmap((LCD_W - BMP_SPLASH.width())/2,
-                    (LCD_H - BMP_SPLASH.height())/2,
+    lcd->drawBitmap((LCD_W - BMP_SPLASH.getWidth())/2,
+                    (LCD_H - BMP_SPLASH.getHeight())/2,
                     &BMP_SPLASH);
   }
   

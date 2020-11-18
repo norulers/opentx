@@ -19,125 +19,88 @@
  */
 
 #include <algorithm>
-#include "radio_tools.h"
-#include "radio_spectrum_analyser.h"
 #include "opentx.h"
-#include "libopenui.h"
 
 extern uint8_t g_moduleIdx;
 
-#define TOOL_NAME_MAXLEN  16
-
-#if defined(LUA) || defined(DEBUG)
-bool readToolName(const char * filename, char * name)
+bool addRadioTool(uint8_t index, const char * label)
 {
-  FIL file;
-  char buffer[1024];
-  UINT count;
-
-  if (f_open(&file, filename, FA_READ) != FR_OK) {
-    return "Error opening file";
+  if (index >= menuVerticalOffset) {
+    uint8_t lineIndex = index - menuVerticalOffset;
+    if (lineIndex < NUM_BODY_LINES) {
+      int8_t sub = menuVerticalPosition - HEADER_LINE;
+      LcdFlags attr = (sub == index ? INVERS : 0);
+      coord_t y = MENU_CONTENT_TOP + lineIndex * FH;
+      lcdDrawNumber(MENUS_MARGIN_LEFT, y, index + 1, LEADING0 | LEFT, 2);
+      lcdDrawText(30, y, label, (sub == index ? INVERS : 0));
+      if (attr && s_editMode > 0) {
+        s_editMode = 0;
+        killAllEvents();
+        return true;
+      }
+    }
   }
 
-  if (f_read(&file, &buffer, sizeof(buffer), &count) != FR_OK) {
-    f_close(&file);
-    return false;
-  }
-
-  const char * tns = "TNS|";
-  auto * start = std::search(buffer, buffer + sizeof(buffer), tns, tns + 4);
-  if (start >= buffer + sizeof(buffer))
-    return false;
-
-  start += 4;
-
-  const char * tne = "|TNE";
-  auto * end = std::search(buffer, buffer + sizeof(buffer), tne, tne + 4);
-  if (end >= buffer + sizeof(buffer) || end <= start)
-    return false;
-
-  uint8_t len = end - start;
-  if (len > TOOL_NAME_MAXLEN)
-    return false;
-
-  strncpy(name, start, len);
-  memclear(name + len, TOOL_NAME_MAXLEN + 1 - len);
-
-  return true;
+  return false;
 }
 
-bool isRadioScriptTool(const char * filename)
+void addRadioModuleTool(uint8_t index, const char * label, bool (* tool)(event_t), uint8_t module)
 {
-  const char * ext = getFileExtension(filename);
-  return ext && !strcasecmp(ext, SCRIPT_EXT);
+  if (addRadioTool(index, label)) {
+    g_moduleIdx = module;
+    pushMenu(tool);
+  }
+}
+
+#if defined(LUA)
+void addRadioScriptTool(uint8_t index, const char * path)
+{
+  char toolName[RADIO_TOOL_NAME_MAXLEN + 1];
+  const char * label;
+  char * ext = (char *)getFileExtension(path);
+  if (readToolName(toolName, path)) {
+    label = toolName;
+  }
+  else {
+    *ext = '\0';
+    label = getBasename(path);
+  }
+
+  if (addRadioTool(index, label)) {
+    f_chdir("/SCRIPTS/TOOLS/");
+    *ext = '.';
+    luaExec(path);
+  }
 }
 #endif
 
-RadioToolsPage::RadioToolsPage():
-  PageTab(STR_MENUTOOLS, ICON_RADIO_TOOLS)
+bool menuRadioTools(event_t event)
 {
-}
-
-void RadioToolsPage::build(FormWindow * window)
-{
-  this->window = window;
-
-  memclear(&reusableBuffer.radioTools, sizeof(reusableBuffer.radioTools));
-  waiting = 0;
-
+  if (event == EVT_ENTRY  || event == EVT_ENTRY_UP) {
+    memclear(&reusableBuffer.radioTools, sizeof(reusableBuffer.radioTools));
 #if defined(PXX2)
-  for (uint8_t module = 0; module < NUM_MODULES; module++) {
-    if (isModulePXX2(module) && (module == INTERNAL_MODULE ? IS_INTERNAL_MODULE_ON() : IS_EXTERNAL_MODULE_ON())) {
-      waiting |= (1 << module);
-      moduleState[module].readModuleInformation(&reusableBuffer.radioTools.modules[module], PXX2_HW_INFO_TX_ID, PXX2_HW_INFO_TX_ID);
+    for (uint8_t module = 0; module < NUM_MODULES; module++) {
+      if (isModulePXX2(module) && (module == INTERNAL_MODULE ? IS_INTERNAL_MODULE_ON() : IS_EXTERNAL_MODULE_ON())) {
+        moduleState[module].readModuleInformation(&reusableBuffer.radioTools.modules[module], PXX2_HW_INFO_TX_ID, PXX2_HW_INFO_TX_ID);
+      }
     }
-  }
 #endif
-
-  rebuild(window);
-}
-
-void RadioToolsPage::checkEvents()
-{
-  bool refresh = false;
-
-  for (uint8_t module = 0; module < NUM_MODULES; module++) {
-    if ((waiting & (1 << module)) && reusableBuffer.radioTools.modules[module].information.modelID) {
-      waiting &= ~(1 << module);
-      refresh = true;
-    }
   }
 
-  if (refresh) {
-    rebuild(window);
-  }
+  SIMPLE_MENU(STR_MENUTOOLS, RADIO_ICONS, menuTabGeneral, MENU_RADIO_TOOLS, HEADER_LINE + reusableBuffer.radioTools.linesCount);
 
-  PageTab::checkEvents();
-}
+  uint8_t index = 0;
 
-void RadioToolsPage::rebuild(FormWindow * window)
-{
-  FormGridLayout grid;
-  grid.spacer(PAGE_PADDING);
-  grid.setLabelWidth(100);
 
-  window->clear();
-  Window::clearFocus();
 
-// LUA scripts in TOOLS
-#if defined(LUA) || defined(DEBUG)
+#if defined(LUA)
   FILINFO fno;
   DIR dir;
-
-#if defined(CROSSFIRE)
-//  if (isFileAvailable(SCRIPTS_TOOLS_PATH "/CROSSFIRE/crossfire.lua"))
-//    addRadioScriptTool(index++, SCRIPTS_TOOLS_PATH "/CROSSFIRE/crossfire.lua");
-#endif
 
   FRESULT res = f_opendir(&dir, SCRIPTS_TOOLS_PATH);
   if (res == FR_OK) {
     for (;;) {
-      TCHAR path[FF_MAX_LFN+1] = SCRIPTS_TOOLS_PATH "/";
+      TCHAR path[_MAX_LFN+1] = SCRIPTS_TOOLS_PATH "/";
       res = f_readdir(&dir, &fno);                   /* Read a directory item */
       if (res != FR_OK || fno.fname[0] == 0) break;  /* Break on error or end of dir */
       if (fno.fattrib & AM_DIR) continue;            /* Skip subfolders */
@@ -145,77 +108,35 @@ void RadioToolsPage::rebuild(FormWindow * window)
       if (fno.fattrib & AM_SYS) continue;            /* Skip system files */
 
       strcat(path, fno.fname);
-      if (isRadioScriptTool(fno.fname)) {
-        char toolName[TOOL_NAME_MAXLEN + 1];
-        const char * label;
-        char * ext = (char *)getFileExtension(path);
-        if (readToolName(path, toolName)) {
-          label = toolName;
-        }
-        else {
-          *ext = '\0';
-          label = getBasename(path);
-        }
-        new StaticText(window, grid.getLabelSlot(), "lua", BUTTON_BACKGROUND, CENTERED);
-        new TextButton(window, grid.getFieldSlot(1), label, [=]() -> uint8_t {
-          f_chdir("/SCRIPTS/TOOLS/");
-          //luaExec(path);
-          return 0;
-        }, 0);
-        grid.nextLine();
-      }
+      if (isRadioScriptTool(fno.fname))
+        addRadioScriptTool(index++, path);
     }
   }
 #endif
 
-#if defined(PXX2)
-  // PXX2 modules tools
-  if (isPXX2ModuleOptionAvailable(reusableBuffer.hardwareAndSettings.modules[INTERNAL_MODULE].information.modelID, MODULE_OPTION_SPECTRUM_ANALYSER)) {
-    new StaticText(window, grid.getLabelSlot(), "access", BUTTON_BACKGROUND, CENTERED);
-    new TextButton(window, grid.getFieldSlot(1), STR_SPECTRUM_ANALYSER_INT, [=]() -> uint8_t {
-        new RadioSpectrumAnalyser(INTERNAL_MODULE);
-        return 0;
-    }, 0);
-    grid.nextLine();
-  }
+#if defined(INTERNAL_MODULE_PXX2)
+  if (isPXX2ModuleOptionAvailable(reusableBuffer.hardwareAndSettings.modules[INTERNAL_MODULE].information.modelID, MODULE_OPTION_SPECTRUM_ANALYSER))
+    addRadioModuleTool(index++, STR_SPECTRUM_ANALYSER_INT, menuRadioSpectrumAnalyser, INTERNAL_MODULE);
 
-  if (isPXX2ModuleOptionAvailable(reusableBuffer.hardwareAndSettings.modules[INTERNAL_MODULE].information.modelID, MODULE_OPTION_POWER_METER)) {
-    new StaticText(window, grid.getLabelSlot(), "access", BUTTON_BACKGROUND, CENTERED);
-    new TextButton(window, grid.getFieldSlot(1), STR_POWER_METER_INT, [=]() -> uint8_t {
-//        new RadioPowerMeter(INTERNAL_MODULE);
-        return 0;
-    }, 0);
-    grid.nextLine();
-  }
+  if (isPXX2ModuleOptionAvailable(reusableBuffer.hardwareAndSettings.modules[INTERNAL_MODULE].information.modelID, MODULE_OPTION_POWER_METER))
+    addRadioModuleTool(index++, STR_POWER_METER_INT, menuRadioPowerMeter, INTERNAL_MODULE);
 #elif defined(INTERNAL_MODULE_MULTI)
-  new StaticText(window, grid.getLabelSlot(), "multi", BUTTON_BACKGROUND, CENTERED);
-  new TextButton(window, grid.getFieldSlot(1), STR_SPECTRUM_ANALYSER_INT, [=]() -> uint8_t {
-      new RadioSpectrumAnalyser(INTERNAL_MODULE);
-      return 0;
-  }, 0);
-  grid.nextLine();
+  addRadioModuleTool(index++, STR_SPECTRUM_ANALYSER_INT, menuRadioSpectrumAnalyser, INTERNAL_MODULE);
 #endif
 #if defined(PXX2)|| defined(MULTIMODULE)
-  if (isPXX2ModuleOptionAvailable(reusableBuffer.hardwareAndSettings.modules[EXTERNAL_MODULE].information.modelID, MODULE_OPTION_SPECTRUM_ANALYSER) || isModuleMultimodule(EXTERNAL_MODULE)) {
-    new StaticText(window, grid.getLabelSlot(), isModuleMultimodule(EXTERNAL_MODULE) ? "multi" : "access", BUTTON_BACKGROUND, CENTERED);
-    new TextButton(window, grid.getFieldSlot(1), STR_SPECTRUM_ANALYSER_EXT, [=]() -> uint8_t {
-        new RadioSpectrumAnalyser(EXTERNAL_MODULE);
-        return 0;
-    }, 0);
-    grid.nextLine();
-  }
+  if (isPXX2ModuleOptionAvailable(reusableBuffer.hardwareAndSettings.modules[EXTERNAL_MODULE].information.modelID, MODULE_OPTION_SPECTRUM_ANALYSER) || isModuleMultimodule(EXTERNAL_MODULE))
+    addRadioModuleTool(index++, STR_SPECTRUM_ANALYSER_EXT, menuRadioSpectrumAnalyser, EXTERNAL_MODULE);
 #endif
 #if defined(PXX2)
-  if (isPXX2ModuleOptionAvailable(reusableBuffer.hardwareAndSettings.modules[EXTERNAL_MODULE].information.modelID, MODULE_OPTION_POWER_METER)) {
-    new StaticText(window, grid.getLabelSlot(), "access", BUTTON_BACKGROUND, CENTERED);
-    new TextButton(window, grid.getFieldSlot(1), STR_POWER_METER_EXT, [=]() -> uint8_t {
-//        new RadioPowerMeter(EXTERNAL_MODULE);
-      return 0;
-    }, 0);
-
-    grid.nextLine();
-  }
+  if (isPXX2ModuleOptionAvailable(reusableBuffer.hardwareAndSettings.modules[EXTERNAL_MODULE].information.modelID, MODULE_OPTION_POWER_METER))
+    addRadioModuleTool(index++, STR_POWER_METER_EXT, menuRadioPowerMeter, EXTERNAL_MODULE);
 #endif
 
-  window->setInnerHeight(grid.getWindowHeight());
+  if (index == 0) {
+    lcdDrawCenteredText(LCD_H/2, STR_NO_TOOLS);
+  }
+
+  reusableBuffer.radioTools.linesCount = index;
+
+  return true;
 }

@@ -40,14 +40,14 @@ const WidgetFactory * getWidgetFactory(const char * name)
       return (*it);
     }
   }
-  return nullptr;
+  return NULL;
 }
 
-Widget * loadWidget(const char * name, Window * parent, const rect_t & rect, Widget::PersistentData * persistentData)
+Widget * loadWidget(const char * name, const Zone & zone, Widget::PersistentData * persistentData)
 {
   const WidgetFactory * factory = getWidgetFactory(name);
   if (factory) {
-    return factory->create(parent, rect, persistentData, false);
+    return factory->create(zone, persistentData, false);
   }
-  return nullptr;
+  return NULL;
 }

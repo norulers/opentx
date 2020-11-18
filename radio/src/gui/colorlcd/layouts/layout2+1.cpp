@@ -25,14 +25,14 @@ const uint8_t LBM_LAYOUT_2P1[] = {
 };
 
 const ZoneOption OPTIONS_LAYOUT_2P1[] = {
-  { "Top bar", ZoneOption::Bool },
-  { "Flight mode", ZoneOption::Bool },
-  { "Sliders", ZoneOption::Bool },
-  { "Trims", ZoneOption::Bool },
-  { nullptr, ZoneOption::Bool }
+  { STR_TOP_BAR, ZoneOption::Bool },
+  { STR_FLIGHT_MODE, ZoneOption::Bool },
+  { STR_SLIDERS, ZoneOption::Bool },
+  { STR_TRIMS, ZoneOption::Bool },
+  { NULL, ZoneOption::Bool }
 };
 
-const rect_t ZONES_LAYOUT_2P1[3] = {
+const Zone ZONES_LAYOUT_2P1[3] = {
   { 240, 60, 192, 152 },
   { 48, 60, 180, 70 },
   { 48, 142, 180, 70 }
@@ -46,58 +46,58 @@ class Layout2P1: public Layout
     {
     }
 
-    void create() override
+    virtual void create()
     {
       Layout::create();
-      persistentData->options[0] = ZoneOptionValueTyped { ZOV_Bool, OPTION_VALUE_BOOL(true) };
-      persistentData->options[1] = ZoneOptionValueTyped { ZOV_Bool, OPTION_VALUE_BOOL(true) };
-      persistentData->options[2] = ZoneOptionValueTyped { ZOV_Bool, OPTION_VALUE_BOOL(true) };
-      persistentData->options[3] = ZoneOptionValueTyped { ZOV_Bool, OPTION_VALUE_BOOL(true) };
+      persistentData->options[0].boolValue = true;
+      persistentData->options[1].boolValue = true;
+      persistentData->options[2].boolValue = true;
+      persistentData->options[3].boolValue = true;
     }
 
-    unsigned int getZonesCount() const override
+    virtual unsigned int getZonesCount() const
     {
       return DIM(ZONES_LAYOUT_2P1);
     }
 
-    rect_t getZone(unsigned int index) const override
+    virtual Zone getZone(unsigned int index) const
     {
       return ZONES_LAYOUT_2P1[index];
     }
 
-//    virtual void refresh();
+    virtual void refresh();
 };
 
-//void Layout2P1::refresh()
-//{
-//  theme->drawBackground();
-//
-//  if (persistentData->options[0].value.boolValue) {
-//    drawTopBar();
-//  }
-//
-//  if (persistentData->options[1].value.boolValue) {
-//    // Flight mode
-//    lcdDrawSizedText(LCD_W / 2 - getTextWidth(g_model.flightModeData[mixerCurrentFlightMode].name,
-//                                              sizeof(g_model.flightModeData[mixerCurrentFlightMode].name),
-//                                              ZCHAR | FONT(XS)) / 2,
-//                     232,
-//                     g_model.flightModeData[mixerCurrentFlightMode].name,
-//                     sizeof(g_model.flightModeData[mixerCurrentFlightMode].name), ZCHAR | FONT(XS));
-//  }
-//
-//  if (persistentData->options[2].value.boolValue) {
-//    // Pots and rear sliders positions
-//    drawMainPots();
-//  }
-//
-//  if (persistentData->options[3].value.boolValue) {
-//    // Trims
-//    drawTrims(mixerCurrentFlightMode);
-//  }
-//
-//  Layout::refresh();
-//}
+void Layout2P1::refresh()
+{
+  theme->drawBackground();
 
-BaseLayoutFactory<Layout2P1> layout2P1("Layout2P1", "2 + 1", LBM_LAYOUT_2P1, OPTIONS_LAYOUT_2P1);
+  if (persistentData->options[0].boolValue) {
+    drawTopBar();
+  }
+
+  if (persistentData->options[1].boolValue) {
+    // Flight mode
+    lcdDrawSizedText(LCD_W / 2 - getTextWidth(g_model.flightModeData[mixerCurrentFlightMode].name,
+                                              sizeof(g_model.flightModeData[mixerCurrentFlightMode].name),
+                                              ZCHAR | SMLSIZE) / 2,
+                     232,
+                     g_model.flightModeData[mixerCurrentFlightMode].name,
+                     sizeof(g_model.flightModeData[mixerCurrentFlightMode].name), ZCHAR | SMLSIZE);
+  }
+
+  if (persistentData->options[2].boolValue) {
+    // Pots and rear sliders positions
+    drawMainPots();
+  }
+
+  if (persistentData->options[3].boolValue) {
+    // Trims
+    drawTrims(mixerCurrentFlightMode);
+  }
+
+  Layout::refresh();
+}
+
+BaseLayoutFactory<Layout2P1> layout2P1("Layout2P1", LBM_LAYOUT_2P1, OPTIONS_LAYOUT_2P1);
 const LayoutFactory * defaultLayout = &layout2P1;

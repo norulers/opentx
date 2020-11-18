@@ -1,113 +1,43 @@
-include_directories(
-  ${RADIO_SRC_DIR}/gui/colorlcd
-  ${RADIO_SRC_DIR}/gui/colorlcd/layouts
-  ${CMAKE_CURRENT_BINARY_DIR}/fonts
-  ${RADIO_SRC_DIR}/thirdparty/libopenui/src
-)
-
-file(GLOB THEMES_SRC RELATIVE ${RADIO_SRC_DIR}/gui/colorlcd ${RADIO_SRC_DIR}/gui/colorlcd/themes/*.cpp)
-file(GLOB LAYOUTS_SRC RELATIVE ${RADIO_SRC_DIR}/gui/colorlcd ${RADIO_SRC_DIR}/gui/colorlcd/layouts/*.cpp)
-file(GLOB WIDGETS_SRC RELATIVE ${RADIO_SRC_DIR}/gui/colorlcd ${RADIO_SRC_DIR}/gui/colorlcd/widgets/*.cpp)
-
 set(GUI_SRC
   ${GUI_SRC}
   lcd.cpp
   splash.cpp
   fonts.cpp
-  curves.cpp
-  bitmaps.cpp
-  theme.cpp
-  tabsgroup.cpp
-  page.cpp
-  fab_button.cpp
-  #  topbar.cpp
-  layout.cpp
-  widget.cpp
-  ${THEMES_SRC}
-  ${LAYOUTS_SRC}
-#  ${WIDGETS_SRC}
-  widgets/text.cpp
-  widgets/value.cpp
-  #  popups.cpp
-  draw_functions.cpp
-  #  menus.cpp
+  popups.cpp
+  widgets.cpp
   menu_model.cpp
   model_select.cpp
   model_setup.cpp
-  model_flightmodes.cpp
-  model_inputs.cpp
-  model_mixes.cpp
-  model_outputs.cpp
-  model_curves.cpp
-  model_gvars.cpp
+  model_module_options.cpp
+  model_receiver_options.cpp
+  model_failsafe.cpp
   model_logical_switches.cpp
-  special_functions.cpp
+  model_special_functions.cpp
+  model_outputs.cpp
   model_telemetry.cpp
+  model_telemetry_sensor.cpp
   menu_radio.cpp
   radio_setup.cpp
-  radio_sdmanager.cpp
-  radio_tools.cpp
   radio_trainer.cpp
   radio_version.cpp
   radio_hardware.cpp
-  radio_diagkeys.cpp
-  radio_diaganas.cpp
   radio_calibration.cpp
   view_main.cpp
-  menu_screen.cpp
-  screen_setup.cpp
-  switch_warn_dialog.cpp
-
-  #  view_statistics.cpp
+  view_statistics.cpp
   )
 
-macro(add_gui_src src)
+if(FLIGHT_MODES)
   set(GUI_SRC
     ${GUI_SRC}
-    ${src}
+    model_flightmodes.cpp
     )
-endmacro(add_gui_src)
-
-if(HELI)
-  add_gui_src(model_heli.cpp)
-endif()
-
-if(PXX2 OR LUA OR MULTIMODULE)
-  add_gui_src(radio_tools.cpp)
-endif()
-
-if(PXX2 OR MULTIMODULE)
-  add_gui_src(radio_spectrum_analyser.cpp)
 endif()
 
 if(LUA STREQUAL YES)
-  # TODO set(SRC ${SRC} lua/widgets.cpp)
-  # TODO set(GUI_SRC ${GUI_SRC} model_custom_scripts.cpp)
+  set(GUI_SRC
+    ${GUI_SRC}
+    model_custom_scripts.cpp
+    )
 endif()
 
-set(SRC
-  ${SRC}
-  stubs.cpp
-  storage/modelslist.cpp
-  )
-
-# includes libopenui
-include(${RADIO_SRC_DIR}/thirdparty/libopenui/src/CMakeLists.txt)
-include_directories(gui/libopenui)
-add_definitions(-DLIBOPENUI)
-foreach(LIBOPENUI_FILE ${LIBOPENUI_SRC})
-  set(SRC ${SRC} thirdparty/libopenui/src/${LIBOPENUI_FILE})
-endforeach()
-
-add_gui_src(fullscreen_dialog.cpp)
-add_gui_src(message_dialog.cpp)
-add_gui_src(confirm_dialog.cpp)
-add_gui_src(timeedit.cpp)
-add_gui_src(curve.cpp)
-add_gui_src(sourcechoice.cpp)
-add_gui_src(switchchoice.cpp)
-add_gui_src(curveedit.cpp)
-
-if(HARDWARE_TOUCH)
-  add_gui_src(keyboard_curve.cpp)
-endif()
+include(gui/common/colorlcd/CMakeLists.txt)

@@ -28,7 +28,7 @@ class GaugeWidget: public Widget
     {
     }
 
-    virtual void refresh();
+    void refresh() override;
 
     static const ZoneOption options[];
 };
@@ -43,10 +43,10 @@ const ZoneOption GaugeWidget::options[] = {
 
 void GaugeWidget::refresh()
 {
-  mixsrc_t index = persistentData->options[0].value.unsignedValue;
-  int32_t min = persistentData->options[1].value.signedValue;
-  int32_t max = persistentData->options[2].value.signedValue;
-  uint16_t color = persistentData->options[3].value.unsignedValue;
+  mixsrc_t index = persistentData->options[0].unsignedValue;
+  int32_t min = persistentData->options[1].signedValue;
+  int32_t max = persistentData->options[2].signedValue;
+  uint16_t color = persistentData->options[3].unsignedValue;
 
   int32_t value = getValue(index);
 
@@ -61,12 +61,12 @@ void GaugeWidget::refresh()
   int percent = divRoundClosest(100 * (value - min), (max - min));
 
   // Gauge label
-  drawSource(zone.x, zone.y, index, FONT(XS) | FOCUS_COLOR);
+  drawSource(zone.x, zone.y, index, SMLSIZE | TEXT_INVERTED_COLOR);
 
   // Gauge
   lcdSetColor(color);
-  lcdDrawSolidFilledRect(zone.x, zone.y + 16, zone.w, 16, FOCUS_COLOR);
-  lcdDrawNumber(zone.x+zone.w/2, zone.y + 17, percent, FONT(XS) | CUSTOM_COLOR | CENTERED, 0, nullptr, "%");
+  lcdDrawSolidFilledRect(zone.x, zone.y + 16, zone.w, 16, TEXT_INVERTED_COLOR);
+  lcdDrawNumber(zone.x + zone.w/2, zone.y + 16, percent, SMLSIZE | CUSTOM_COLOR | CENTERED, 0, nullptr, "%");
   lcd->invertRect(zone.x + w, zone.y + 16, zone.w - w, 16, CUSTOM_COLOR);
 }
 

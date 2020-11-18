@@ -18,136 +18,58 @@
  * GNU General Public License for more details.
  */
 
-#include "radio_calibration.h"
 #include "opentx.h"
 
 #define XPOT_DELTA                     10
 #define XPOT_DELAY                     5 /* cycles */
+#define STICKS_WIDTH                   90
+#define STICKS_Y                       60
+#define STICK_LEFT_X                   25
+#define STICK_RIGHT_X                  (LCD_W-STICK_LEFT_X-STICKS_WIDTH)
+#define STICK_PANEL_WIDTH              68
 
-uint8_t menuCalibrationState;
-
-class StickCalibrationWindow: public Window {
-  public:
-    StickCalibrationWindow(Window * parent, const rect_t & rect, uint8_t stickX, uint8_t stickY):
-      Window(parent, rect, REFRESH_ALWAYS),
-      stickX(stickX),
-      stickY(stickY)
-    {
-    }
-
-    void paint(BitmapBuffer * dc) override
-    {
-      dc->drawBitmap(0, 0, calibStickBackground);
-      int16_t x = calibratedAnalogs[CONVERT_MODE(stickX)];
-      int16_t y = calibratedAnalogs[CONVERT_MODE(stickY)];
-      dc->drawBitmap(width() / 2 - 9 + (bitmapSize / 2 * x) / RESX, height() / 2 - 9 - (bitmapSize / 2 * y) / RESX, calibStick);
-    }
-
-  protected:
-    static constexpr coord_t bitmapSize = 68;
-    uint8_t stickX, stickY;
-};
-
-class MultiPosCalibrationWindow: public Window {
-  public:
-    MultiPosCalibrationWindow(Window * parent, const rect_t & rect, uint8_t potIndex):
-      Window(parent, rect),
-      potIndex(potIndex)
-    {
-    }
-
-    void checkEvents() override
-    {
-      // will always force a full monitor window refresh
-      invalidate();
-    }
-
-    void paint(BitmapBuffer * dc) override
-    {
-      drawHorizontalSlider(dc, 5, 8, rect.w - 18, 1 + (potsPos[potIndex] & 0x0f), 1, XPOTS_MULTIPOS_COUNT+1, XPOTS_MULTIPOS_COUNT, OPTION_SLIDER_TICKS | OPTION_SLIDER_BIG_TICKS | OPTION_SLIDER_NUMBER_BUTTON);
-    }
-
-  protected:
-    static constexpr coord_t bitmapSize = 68;
-    uint8_t potIndex;
-};
-
-class PotCalibrationWindow: public Window {
-  public:
-    PotCalibrationWindow(Window * parent, const rect_t & rect, uint8_t potIndex):
-      Window(parent, rect),
-      potIndex(potIndex)
-    {
-    }
-
-    void checkEvents() override
-    {
-      // will always force a full monitor window refresh
-      invalidate();
-    }
-
-    void paint(BitmapBuffer * dc) override
-    {
-      if (rect.h > rect.w)
-        drawVerticalSlider(dc, 5, 8, rect.h - 18, calibratedAnalogs[potIndex], -RESX, RESX, 40, OPTION_SLIDER_TICKS | OPTION_SLIDER_BIG_TICKS | OPTION_SLIDER_SQUARE_BUTTON);
-      else
-        drawHorizontalSlider(dc, 5, 8, rect.w - 18, calibratedAnalogs[potIndex], -RESX, RESX, 40, OPTION_SLIDER_TICKS | OPTION_SLIDER_BIG_TICKS | OPTION_SLIDER_SQUARE_BUTTON);
-    }
-
-  protected:
-    uint8_t potIndex;
-};
-
-RadioCalibrationPage::RadioCalibrationPage(bool initial):
-  Page(ICON_RADIO_CALIBRATION),
-  initial(initial)
+void drawStick(coord_t x, coord_t y, const BitmapBuffer * background, int16_t xval, int16_t yval)
 {
-  buildHeader(&header);
-  buildBody(&body);
-  setFocus(SET_FOCUS_DEFAULT);
+  lcd->drawBitmap(x, y, calibStickBackground);
+  lcd->drawBitmap(x + 2 + STICK_PANEL_WIDTH/2 + STICK_PANEL_WIDTH/2 * xval/RESX, y + 2 + STICK_PANEL_WIDTH/2 - STICK_PANEL_WIDTH/2 * yval/RESX, calibStick);
 }
 
-void RadioCalibrationPage::buildHeader(Window * window)
+void drawSticks()
 {
-  new StaticText(window, {PAGE_TITLE_LEFT, PAGE_TITLE_TOP, LCD_W - PAGE_TITLE_LEFT, PAGE_LINE_HEIGHT}, STR_MENUCALIBRATION, 0, MENU_COLOR);
-  text = new StaticText(window, {PAGE_TITLE_LEFT, PAGE_TITLE_TOP + PAGE_LINE_HEIGHT, LCD_W - PAGE_TITLE_LEFT, PAGE_LINE_HEIGHT}, STR_MENUTOSTART, 0, MENU_COLOR);
+  int16_t calibStickVert = calibratedAnalogs[CONVERT_MODE(1)];
+  if (g_model.throttleReversed && CONVERT_MODE(1) == THR_STICK)
+    calibStickVert = -calibStickVert;
+  drawStick(STICK_LEFT_X, STICKS_Y, calibStickBackground, calibratedAnalogs[CONVERT_MODE(0)], calibStickVert);
+
+  calibStickVert = calibratedAnalogs[CONVERT_MODE(2)];
+  if (g_model.throttleReversed && CONVERT_MODE(2) == THR_STICK)
+    calibStickVert = -calibStickVert;
+  drawStick(STICK_RIGHT_X, STICKS_Y, calibStickBackground, calibratedAnalogs[CONVERT_MODE(3)], calibStickVert);
 }
 
-void RadioCalibrationPage::buildBody(FormWindow * window)
+void drawPots()
 {
-  menuCalibrationState = CALIB_START;
+  // The pots which are displayed in the main view
+  extern void drawMainPots();
+  drawMainPots();
 
-  if (calibRadioPict) {
-    // Background radio image
-#if LCD_W > LCD_H
-    new StaticBitmap(window, {LCD_W / 2 - calibRadioPict->width() / 2, 5, calibRadioPict->height(), calibRadioPict->width()}, calibRadioPict);
-#else
-    new StaticBitmap(window, {LCD_W / 2 - calibRadioPict->width() / 2, LCD_H / 2 - calibRadioPict->height() / 2, calibRadioPict->height(), calibRadioPict->width()}, calibRadioPict);
-#endif
-  }
-
-  // The two sticks
-  new StickCalibrationWindow(window, {40, 20, 90, 90}, STICK1, STICK2);
-  new StickCalibrationWindow(window, {LCD_W - 130, 20, 90, 90}, STICK4, STICK3);
-
-#if defined(PCBHORUS)
-  // The 2 main sliders
-  new PotCalibrationWindow(window, {0, 2, 20, 150}, SLIDER1);
-  new PotCalibrationWindow(window, {LCD_W-20, 2, 20, 150}, SLIDER2);
-
-  // The 3 pots
-  new PotCalibrationWindow(window, {0, window->height()-25, 150, 20}, POT1);
-  new MultiPosCalibrationWindow(window, {LCD_W/2-25,window->height()-25, 50, 20}, POT2);
-  new PotCalibrationWindow(window, {LCD_W-150, window->height()-25, 150, 20}, POT3);
-#elif defined(PCBNV14)
-  new PotCalibrationWindow(window, {0, window->height()-25, 150, 20}, POT1);
-  new PotCalibrationWindow(window, {LCD_W-150, window->height()-25, 150, 20}, POT2);
+#if defined(PCBX12S)
+  // The 2 main front sliders
+  drawVerticalSlider(125, 120, 120, calibratedAnalogs[CALIBRATED_SLIDER_FRONT_LEFT], -RESX, RESX, 40, OPTION_SLIDER_TICKS | OPTION_SLIDER_BIG_TICKS | OPTION_SLIDER_SQUARE_BUTTON);
+  drawVerticalSlider(LCD_W-125-12, 120, 120, calibratedAnalogs[CALIBRATED_SLIDER_FRONT_RIGHT], -RESX, RESX, 40, OPTION_SLIDER_TICKS | OPTION_SLIDER_BIG_TICKS | OPTION_SLIDER_SQUARE_BUTTON);
 #endif
 }
 
-void RadioCalibrationPage::checkEvents()
+#if defined(PCBX12S)
+void drawMouse()
 {
-  Page::checkEvents();
+  drawStick(STICK_LEFT_X, STICKS_Y+100, calibTrackpBackground, calibratedAnalogs[CALIBRATED_MOUSE1], calibratedAnalogs[CALIBRATED_MOUSE2]);
+}
+#endif
+
+bool menuCommonCalib(event_t event)
+{
+  drawMenuTemplate(NULL, ICON_RADIO_CALIBRATION, NULL, OPTION_MENU_NO_FOOTER);
 
   for (uint8_t i=0; i<NUM_STICKS+NUM_POTS+NUM_SLIDERS+NUM_MOUSE_ANALOGS; i++) { // get low and high vals for sticks and trims
     int16_t vt = i<TX_VOLTAGE ? anaIn(i) : anaIn(i+1);
@@ -157,7 +79,6 @@ void RadioCalibrationPage::checkEvents()
       if (IS_POT_WITHOUT_DETENT(i)) {
         reusableBuffer.calib.midVals[i] = (reusableBuffer.calib.hiVals[i] + reusableBuffer.calib.loVals[i]) / 2;
       }
-#if NUM_XPOTS > 0
       uint8_t idx = i - POT1;
       int count = reusableBuffer.calib.xpotsCalib[idx].stepsCount;
       if (IS_POT_MULTIPOS(i) && count <= XPOTS_MULTIPOS_COUNT) {
@@ -190,111 +111,135 @@ void RadioCalibrationPage::checkEvents()
           }
         }
       }
-#endif
     }
   }
 
-  if (menuCalibrationState == CALIB_SET_MIDPOINT) {
-    for (uint8_t i = 0; i < NUM_STICKS + NUM_POTS + NUM_SLIDERS + NUM_MOUSE_ANALOGS; i++) {
-      reusableBuffer.calib.loVals[i] = 15000;
-      reusableBuffer.calib.hiVals[i] = -15000;
-      reusableBuffer.calib.midVals[i] = i < TX_VOLTAGE ? anaIn(i) : anaIn(i + 1);
-#if NUM_XPOTS > 0
-      if (i < NUM_XPOTS) {
-        reusableBuffer.calib.xpotsCalib[i].stepsCount = 0;
-        reusableBuffer.calib.xpotsCalib[i].lastCount = 0;
-      }
-#endif
-    }
-  }
-  else if (menuCalibrationState == CALIB_MOVE_STICKS) {
-    for (uint8_t i = 0; i < NUM_STICKS + NUM_POTS + NUM_SLIDERS + NUM_MOUSE_ANALOGS; i++) {
-      if (abs(reusableBuffer.calib.loVals[i] - reusableBuffer.calib.hiVals[i]) > 50) {
-        g_eeGeneral.calib[i].mid = reusableBuffer.calib.midVals[i];
-        int16_t v = reusableBuffer.calib.midVals[i] - reusableBuffer.calib.loVals[i];
-        g_eeGeneral.calib[i].spanNeg = v - v / STICK_TOLERANCE;
-        v = reusableBuffer.calib.hiVals[i] - reusableBuffer.calib.midVals[i];
-        g_eeGeneral.calib[i].spanPos = v - v / STICK_TOLERANCE;
-      }
-    }
-#if NUM_XPOTS > 0
-    for (int i=POT1; i<=POT_LAST; i++) {
-      int idx = i - POT1;
-      int count = reusableBuffer.calib.xpotsCalib[idx].stepsCount;
-      if (IS_POT_MULTIPOS(i)) {
-        if (count > 1 && count <= XPOTS_MULTIPOS_COUNT) {
-          for (int j=0; j<count; j++) {
-            for (int k=j+1; k<count; k++) {
-              if (reusableBuffer.calib.xpotsCalib[idx].steps[k] < reusableBuffer.calib.xpotsCalib[idx].steps[j]) {
-                SWAP(reusableBuffer.calib.xpotsCalib[idx].steps[j], reusableBuffer.calib.xpotsCalib[idx].steps[k]);
-              }
-            }
-          }
-          StepsCalibData * calib = (StepsCalibData *) &g_eeGeneral.calib[i];
-          calib->count = count - 1;
-          for (int j=0; j<calib->count; j++) {
-            calib->steps[j] = (reusableBuffer.calib.xpotsCalib[idx].steps[j+1] + reusableBuffer.calib.xpotsCalib[idx].steps[j]) >> 5;
-          }
-        }
-        else {
-          // g_eeGeneral.potsConfig &= ~(0x03<<(2*idx));
-        }
-      }
-    }
-#endif
-  }
-}
+  switch (event) {
+    case EVT_ENTRY:
+    case EVT_KEY_FIRST(KEY_EXIT):
+      menuCalibrationState = CALIB_START;
+      break;
 
-#if defined(HARDWARE_KEYS)
-void RadioCalibrationPage::onEvent(event_t event)
-{
-  TRACE_WINDOWS("%s received event 0x%X", getWindowDebugString().c_str(), event);
-
-  if (event == EVT_KEY_BREAK(KEY_ENTER)) {
-    nextStep();
+    case EVT_KEY_FIRST(KEY_ENTER):
+      killEvents(event);
+      menuCalibrationState++;
+      break;
   }
-  else if (event == EVT_KEY_BREAK(KEY_EXIT) && menuCalibrationState != CALIB_START)
-  {
-    menuCalibrationState = CALIB_START;
-    text->setText(STR_MENUTOSTART);
-
-  }
-  else {
-    Page::onEvent(event);
-  }
-}
-#endif
-
-void RadioCalibrationPage::nextStep()
-{
-  menuCalibrationState++;
 
   switch (menuCalibrationState) {
+    case CALIB_START:
+      // START CALIBRATION
+      if (!READ_ONLY()) {
+        lcdDrawText(50, 3, STR_MENUCALIBRATION, MENU_TITLE_COLOR);
+        lcdDrawText(50, 3+FH, STR_MENUTOSTART, MENU_TITLE_COLOR);
+      }
+      break;
+
     case CALIB_SET_MIDPOINT:
-      text->setText(STR_SETMIDPOINT);
+      // SET MIDPOINT
+      lcdDrawText(50, 3, STR_MENUCALIBRATION, MENU_TITLE_COLOR);
+      lcdDrawText(50, 3+FH, STR_SETMIDPOINT, MENU_TITLE_COLOR);
+      for (uint8_t i=0; i<NUM_STICKS+NUM_POTS+NUM_SLIDERS+NUM_MOUSE_ANALOGS; i++) {
+        reusableBuffer.calib.loVals[i] = 15000;
+        reusableBuffer.calib.hiVals[i] = -15000;
+        reusableBuffer.calib.midVals[i] = i < TX_VOLTAGE ? anaIn(i) : anaIn(i+1);
+        if (i < NUM_XPOTS) {
+          reusableBuffer.calib.xpotsCalib[i].stepsCount = 0;
+          reusableBuffer.calib.xpotsCalib[i].lastCount = 0;
+        }
+      }
       break;
 
     case CALIB_MOVE_STICKS:
-      text->setText(STR_MOVESTICKSPOTS);
+      // MOVE STICKS/POTS
+      lcdDrawText(50, 3, STR_MENUCALIBRATION, MENU_TITLE_COLOR);
+      lcdDrawText(50, 3+FH, STR_MOVESTICKSPOTS, MENU_TITLE_COLOR);
+      for (uint8_t i=0; i<NUM_STICKS+NUM_POTS+NUM_SLIDERS+NUM_MOUSE_ANALOGS; i++) {
+        if (abs(reusableBuffer.calib.loVals[i]-reusableBuffer.calib.hiVals[i]) > 50) {
+          g_eeGeneral.calib[i].mid = reusableBuffer.calib.midVals[i];
+          int16_t v = reusableBuffer.calib.midVals[i] - reusableBuffer.calib.loVals[i];
+          g_eeGeneral.calib[i].spanNeg = v - v/STICK_TOLERANCE;
+          v = reusableBuffer.calib.hiVals[i] - reusableBuffer.calib.midVals[i];
+          g_eeGeneral.calib[i].spanPos = v - v/STICK_TOLERANCE;
+        }
+      }
+      for (int i=POT1; i<=POT_LAST; i++) {
+        int idx = i - POT1;
+        int count = reusableBuffer.calib.xpotsCalib[idx].stepsCount;
+        if (IS_POT_MULTIPOS(i)) {
+          if (count > 1 && count <= XPOTS_MULTIPOS_COUNT) {
+            for (int j=0; j<count; j++) {
+              for (int k=j+1; k<count; k++) {
+                if (reusableBuffer.calib.xpotsCalib[idx].steps[k] < reusableBuffer.calib.xpotsCalib[idx].steps[j]) {
+                  SWAP(reusableBuffer.calib.xpotsCalib[idx].steps[j], reusableBuffer.calib.xpotsCalib[idx].steps[k]);
+                }
+              }
+            }
+            StepsCalibData * calib = (StepsCalibData *) &g_eeGeneral.calib[i];
+            calib->count = count - 1;
+            for (int j=0; j<calib->count; j++) {
+              calib->steps[j] = (reusableBuffer.calib.xpotsCalib[idx].steps[j+1] + reusableBuffer.calib.xpotsCalib[idx].steps[j]) >> 5;
+            }
+          }
+          else {
+            // g_eeGeneral.potsConfig &= ~(0x03<<(2*idx));
+          }
+        }
+      }
       break;
 
     case CALIB_STORE:
-      text->setText(STR_CALIB_DONE);
       g_eeGeneral.chkSum = evalChkSum();
       storageDirty(EE_GENERAL);
       menuCalibrationState = CALIB_FINISHED;
-      if (initial)
-        text->getParent()->getParent()->deleteLater();
       break;
 
     default:
-      text->setText(STR_MENUTOSTART);
       menuCalibrationState = CALIB_START;
       break;
   }
+
+
+  if (calibHorus) {
+    lcd->drawBitmap((LCD_W-calibHorus->getWidth())/2, LCD_H-20-calibHorus->getHeight(), calibHorus);
+  }
+
+  drawSticks();
+  drawPots();
+
+#if defined(PCBX12S)
+  drawMouse();
+#endif
+
+  return true;
 }
 
-void startCalibration()
+bool menuRadioCalibration(event_t event)
 {
-  new RadioCalibrationPage();
+  if (event == EVT_ENTRY || event == EVT_ENTRY_UP) TRACE("Menu %s displayed ...", STR_MENUCALIBRATION);
+  if (menuCalibrationState == CALIB_FINISHED || (menuCalibrationState == CALIB_START && event == EVT_KEY_FIRST(KEY_EXIT))) {
+    menuCalibrationState = CALIB_START;
+    killEvents(event);
+    popMenu();
+    return false;
+  }
+  if (!check_submenu_simple(event, 0)) {
+    return false;
+  }
+
+  menuVerticalPosition = -1;
+
+  return menuCommonCalib(READ_ONLY() ? 0 : event);
+}
+
+bool menuFirstCalib(event_t event)
+{
+  if (event == EVT_KEY_FIRST(KEY_EXIT) || menuCalibrationState == CALIB_FINISHED) {
+    menuCalibrationState = CALIB_START;
+    chainMenu(menuMainView);
+    return false;
+  }
+  else {
+    return menuCommonCalib(event);
+  }
 }

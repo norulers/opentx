@@ -35,7 +35,7 @@ class Layout: public WidgetsContainer<MAX_LAYOUT_ZONES, MAX_LAYOUT_OPTIONS>
 
   public:
     Layout(const LayoutFactory * factory, PersistentData * persistentData):
-      WidgetsContainer<MAX_LAYOUT_ZONES, MAX_LAYOUT_OPTIONS>({0, 0, LCD_W, LCD_H}, persistentData),
+      WidgetsContainer<MAX_LAYOUT_ZONES, MAX_LAYOUT_OPTIONS>(persistentData),
       factory(factory)
     {
     }
@@ -58,21 +58,18 @@ void registerLayout(const LayoutFactory * factory);
 class LayoutFactory
 {
   public:
-    LayoutFactory(const char * id, const char * name):
-      id(id),
+    LayoutFactory(const char * name):
       name(name)
     {
       registerLayout(this);
     }
-    const char * getId() const { return id; }
     const char * getName() const { return name; }
-    virtual void drawThumb(BitmapBuffer * dc, uint16_t x, uint16_t y, LcdFlags flags) const = 0;
+    virtual void drawThumb(uint16_t x, uint16_t y, uint32_t flags) const = 0;
     virtual const ZoneOption * getOptions() const = 0;
     virtual Layout * create(Layout::PersistentData * persistentData) const = 0;
     virtual Layout * load(Layout::PersistentData * persistentData) const = 0;
 
   protected:
-    const char * id;
     const char * name;
 };
 
@@ -80,24 +77,24 @@ template<class T>
 class BaseLayoutFactory: public LayoutFactory
 {
   public:
-    BaseLayoutFactory(const char * id, const char * name, const uint8_t * bitmap, const ZoneOption * options):
-      LayoutFactory(id, name),
+    BaseLayoutFactory(const char * name, const uint8_t * bitmap, const ZoneOption * options):
+      LayoutFactory(name),
       bitmap(bitmap),
       options(options)
     {
     }
 
-    void drawThumb(BitmapBuffer * dc, uint16_t x, uint16_t y, uint32_t flags) const override
+    virtual void drawThumb(uint16_t x, uint16_t y, uint32_t flags) const
     {
-      dc->drawBitmapPattern(x, y, bitmap, flags);
+      lcdDrawBitmapPattern(x, y, bitmap, flags);
     }
 
-    const ZoneOption * getOptions() const override
+    virtual const ZoneOption * getOptions() const
     {
       return options;
     }
 
-    Layout * create(Layout::PersistentData * persistentData) const override
+    virtual Layout * create(Layout::PersistentData * persistentData) const
     {
       Layout * layout = new T(this, persistentData);
       if (layout) {
@@ -106,7 +103,7 @@ class BaseLayoutFactory: public LayoutFactory
       return layout;
     }
 
-    Layout * load(Layout::PersistentData * persistentData) const override
+    virtual Layout * load(Layout::PersistentData * persistentData) const
     {
       Layout * layout = new T(this, persistentData);
       if (layout) {
