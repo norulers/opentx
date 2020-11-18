@@ -1,29 +1,39 @@
 /*
  * Copyright (C) OpenTX
  *
- * Based on code named
- *   th9x - http://code.google.com/p/th9x
- *   er9x - http://code.google.com/p/er9x
- *   gruvin9x - http://code.google.com/p/gruvin9x
+ * Source:
+ *  https://github.com/opentx/libopenui
  *
- * License GPLv2: http://www.gnu.org/licenses/gpl-2.0.html
+ * This file is a part of libopenui library.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful,
+ * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
  */
 
-#ifndef _BITMAP_BUFFER_H_
-#define _BITMAP_BUFFER_H_
+#pragma once
 
-#include <inttypes.h>
-#include "colors.h"
-#include "rle.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include "libopenui_types.h"
+#include "libopenui_defines.h"
+#include "libopenui_depends.h"
+#include "debug.h"
+
+constexpr uint8_t SOLID = 0xFF;
+constexpr uint8_t DOTTED  = 0x55;
+constexpr uint8_t STASHED = 0x33;
+
+#define MOVE_OFFSET() coord_t offsetX = this->offsetX; x += offsetX; this->offsetX = 0; coord_t offsetY = this->offsetY; y += offsetY; this->offsetY = 0
+#define APPLY_OFFSET() x += this->offsetX; y += this->offsetY
+#define RESTORE_OFFSET()  this->offsetX = offsetX, this->offsetY = offsetY
 
 #if defined(LCD_VERTICAL_INVERT)
   #define MOVE_PIXEL_RIGHT(p, count)   p -= count
@@ -33,21 +43,7 @@
 
 #define MOVE_TO_NEXT_RIGHT_PIXEL(p)    MOVE_PIXEL_RIGHT(p, 1)
 
-
 #define USE_STB
-
-// TODO should go to lcd.h again
-typedef int coord_t;
-typedef uint32_t LcdFlags;
-typedef uint16_t display_t;
-
-int getTextWidth(const char * s, int len=0, LcdFlags flags=0);
-
-#if LCD_W >= 480
-#define LCD_COLS                     80
-#else
-#define LCD_COLS                     30
-#endif
 
 enum BitmapFormats
 {
@@ -61,16 +57,75 @@ class BitmapBufferBase
   public:
     BitmapBufferBase(uint8_t format, uint16_t width, uint16_t height, T * data):
       format(format),
-      width(width),
-      height(height),
+      _width(width),
+      _height(height),
+      xmax(width),
+      ymax(height),
       data(data),
       data_end(data + (width * height))
     {
     }
 
     BitmapBufferBase(uint8_t format, T * data):
-      BitmapBufferBase(format, data[0], data[1], data + 2)
+      format(format),
+      _width(*((uint16_t*)data)),
+      _height(*(((uint16_t*)data) + 1)),
+      xmax(_width),
+      ymax(_height),
+      data(data + 2),
+      data_end(data + 2 + (_width * _height))
     {
+    }
+
+    inline void clearClippingRect()
+    {
+      xmin = 0;
+      xmax = _width;
+      ymin = 0;
+      ymax = _height;
+    }
+
+    inline void setClippingRect(coord_t xmin, coord_t xmax, coord_t ymin, coord_t ymax)
+    {
+      this->xmin = xmin;
+      this->xmax = xmax;
+      this->ymin = ymin;
+      this->ymax = ymax;
+    }
+
+    inline void getClippingRect(coord_t & xmin, coord_t & xmax, coord_t & ymin, coord_t & ymax)
+    {
+      xmin = this->xmin;
+      xmax = this->xmax;
+      ymin = this->ymin;
+      ymax = this->ymax;
+    }
+
+    inline void setOffset(coord_t offsetX, coord_t offsetY)
+    {
+      this->offsetX = offsetX;
+      this->offsetY = offsetY;
+    }
+
+    inline void clearOffset()
+    {
+      setOffset(0, 0);
+    }
+
+    inline void reset()
+    {
+      clearOffset();
+      clearClippingRect();
+    }
+
+    coord_t getOffsetX() const
+    {
+      return offsetX;
+    }
+
+    coord_t getOffsetY() const
+    {
+      return offsetY;
     }
 
     inline uint8_t getFormat() const
@@ -78,14 +133,14 @@ class BitmapBufferBase
       return format;
     }
 
-    inline uint16_t getWidth() const
+    inline uint16_t width() const
     {
-      return width;
+      return _width;
     }
 
-    inline uint16_t getHeight() const
+    inline uint16_t height() const
     {
-      return height;
+      return _height;
     }
 
     inline T * getData() const
@@ -95,22 +150,28 @@ class BitmapBufferBase
 
     uint32_t getDataSize() const
     {
-      return width * height * sizeof(T);
+      return _width * _height * sizeof(T);
     }
 
-    inline const display_t * getPixelPtr(coord_t x, coord_t y) const
+    inline const pixel_t * getPixelPtr(coord_t x, coord_t y) const
     {
 #if defined(LCD_VERTICAL_INVERT)
-      x = width - x - 1;
-      y = height - y - 1;
+      x = _width - x - 1;
+      y = _height - y - 1;
 #endif
-      return &data[y*width + x];
+      return &data[y * _width + x];
     }
 
   protected:
     uint8_t format;
-    uint16_t width;
-    uint16_t height;
+    coord_t _width;
+    coord_t _height;
+    coord_t xmin = 0;
+    coord_t xmax;
+    coord_t ymin = 0;
+    coord_t ymax;
+    coord_t offsetX = 0;
+    coord_t offsetY = 0;
     T * data;
     T * data_end;
 };
@@ -120,26 +181,58 @@ typedef BitmapBufferBase<const uint16_t> Bitmap;
 class RLEBitmap:
   public BitmapBufferBase<uint16_t>
 {
-public:
-  RLEBitmap(uint8_t format, const uint8_t* rle_data)
-    : BitmapBufferBase<uint16_t>(format, 0, 0, NULL)
-  {
-    width  = *((uint16_t *)rle_data);
-    height = *(((uint16_t *)rle_data)+1);
+  public:
+    RLEBitmap(uint8_t format, const uint8_t* rle_data) :
+      BitmapBufferBase<uint16_t>(format, 0, 0, nullptr)
+    {
+      _width = *((uint16_t *)rle_data);
+      _height = *(((uint16_t *)rle_data)+1);
+      uint32_t pixels = _width * _height;
+      data = (uint16_t*)malloc(pixels * sizeof(uint16_t));
+      decode((uint8_t *)data, pixels * sizeof(uint16_t), rle_data+4);
+      data_end = data + pixels;
+    }
 
-    uint32_t pixels = width * height;
-    data = (uint16_t*)malloc(pixels * sizeof(uint16_t));
-    rle_decode_8bit((uint8_t*)data, pixels * sizeof(uint16_t), rle_data+4);
-    data_end = data + pixels;
-  }
+    ~RLEBitmap()
+    {
+      free(data);
+    }
 
-  ~RLEBitmap()
-  {
-    free(data);
-  }
+    static int decode(uint8_t * dest, unsigned int destSize, const uint8_t * src)
+    {
+      uint8_t prevByte = 0;
+      bool prevByteValid = false;
+
+      const uint8_t * destEnd = dest + destSize;
+      uint8_t * d = dest;
+
+      while (d < destEnd) {
+        uint8_t byte = *src++;
+        *d++ = byte;
+
+        if (prevByteValid && byte == prevByte) {
+          uint8_t count = *src++;
+
+          if (d + count > destEnd) {
+            TRACE("rle_decode_8bit: destination overflow!\n");
+            return -1;
+          }
+
+          memset(d, byte, count);
+          d += count;
+          prevByteValid = false;
+        }
+        else {
+          prevByte = byte;
+          prevByteValid = true;
+        }
+      }
+
+      return d - dest;
+    }
 };
 
-class BitmapBuffer: public BitmapBufferBase<uint16_t>
+class BitmapBuffer: public BitmapBufferBase<pixel_t>
 {
   private:
     bool dataAllocated;
@@ -148,15 +241,14 @@ class BitmapBuffer: public BitmapBufferBase<uint16_t>
 #endif
 
   public:
-
     BitmapBuffer(uint8_t format, uint16_t width, uint16_t height):
-      BitmapBufferBase<uint16_t>(format, width, height, NULL),
+      BitmapBufferBase<uint16_t>(format, width, height, nullptr),
       dataAllocated(true)
 #if defined(DEBUG)
       , leakReported(false)
 #endif
     {
-      data = (uint16_t *)malloc(width*height*sizeof(uint16_t));
+      data = (uint16_t *)malloc(width * height * sizeof(uint16_t));
       data_end = data + (width * height);
     }
 
@@ -183,10 +275,10 @@ class BitmapBuffer: public BitmapBufferBase<uint16_t>
 
     inline void clear(LcdFlags flags=0)
     {
-      drawSolidFilledRect(0, 0, width, height, flags);
+      drawSolidFilledRect(0, 0, _width - offsetX, _height - offsetY, flags);
     }
 
-    inline void drawPixel(display_t * p, display_t value)
+    inline void drawPixel(pixel_t * p, pixel_t value)
     {
       if (data && (data <= p || p < data_end)) {
         *p = value;
@@ -199,153 +291,193 @@ class BitmapBuffer: public BitmapBufferBase<uint16_t>
 #endif
     }
 
-    inline const display_t * getPixelPtr(coord_t x, coord_t y) const
+    inline const pixel_t * getPixelPtr(coord_t x, coord_t y) const
     {
 #if defined(LCD_VERTICAL_INVERT)
-      x = width - x - 1;
-      y = height - y - 1;
+      x = _width - x - 1;
+      y = _height - y - 1;
 #endif
-      return &data[y*width + x];
+      return &data[y * _width + x];
     }
 
-    inline display_t * getPixelPtr(coord_t x, coord_t y)
+    inline pixel_t * getPixelPtr(coord_t x, coord_t y)
     {
 #if defined(LCD_VERTICAL_INVERT)
-      x = width - x - 1;
-      y = height - y - 1;
+      x = _width - x - 1;
+      y = _height - y - 1;
 #endif
-      return &data[y*width + x];
+      return &data[y * _width + x];
     }
 
-    inline void drawPixel(coord_t x, coord_t y, display_t value)
+    inline void drawPixel(coord_t x, coord_t y, pixel_t value)
     {
-      display_t * p = getPixelPtr(x, y);
+      pixel_t * p = getPixelPtr(x, y);
       drawPixel(p, value);
     }
 
-    void drawAlphaPixel(display_t * p, uint8_t opacity, uint16_t color);
+    void drawAlphaPixel(pixel_t * p, uint8_t opacity, uint16_t color);
 
     inline void drawAlphaPixel(coord_t x, coord_t y, uint8_t opacity, uint16_t color)
     {
-      display_t * p = getPixelPtr(x, y);
+      pixel_t * p = getPixelPtr(x, y);
       drawAlphaPixel(p, opacity, color);
     }
 
-    void drawHorizontalLine(coord_t x, coord_t y, coord_t w, uint8_t pat, LcdFlags att);
+    void drawHorizontalLine(coord_t x, coord_t y, coord_t w, uint8_t pat = SOLID, LcdFlags flags = 0);
 
-    void drawVerticalLine(coord_t x, coord_t y, coord_t h, uint8_t pat, LcdFlags att);
+    void drawVerticalLine(coord_t x, coord_t y, coord_t h, uint8_t pat = SOLID, LcdFlags flags = 0);
 
-    inline void drawSolidHorizontalLine(coord_t x, coord_t y, coord_t w, LcdFlags att)
+    void drawLine(coord_t x1, coord_t y1, coord_t x2, coord_t y2, uint8_t pat, LcdFlags att);
+
+    inline void drawSolidHorizontalLine(coord_t x, coord_t y, coord_t w, LcdFlags flags)
     {
-      drawSolidFilledRect(x, y, w, 1, att);
+      drawSolidFilledRect(x, y, w, 1, flags);
     }
 
-    inline void drawSolidVerticalLine(coord_t x, coord_t y, coord_t h, LcdFlags att)
+    inline void drawSolidVerticalLine(coord_t x, coord_t y, coord_t h, LcdFlags flags)
     {
-      drawSolidFilledRect(x, y, 1, h, att);
+      drawSolidFilledRect(x, y, 1, h, flags);
     }
 
-    void drawRect(coord_t x, coord_t y, coord_t w, coord_t h, uint8_t thickness, uint8_t pat, LcdFlags att);
+    void drawRect(coord_t x, coord_t y, coord_t w, coord_t h, uint8_t thickness = 1, uint8_t pat = SOLID, LcdFlags flags = 0);
 
-    inline void drawSolidFilledRect(coord_t x, coord_t y, coord_t w, coord_t h, LcdFlags flags)
+    inline void drawSolidRect(coord_t x, coord_t y, coord_t w, coord_t h, uint8_t thickness = 1, LcdFlags flags = 0)
     {
-      if (!data || h==0 || w==0) return;
-      if (h<0) { y+=h; h=-h; }
-      if (w<0) { x+=w; w=-w; }
-      DMAFillRect(data, width, height, (x>0)?x:0, (y>0)?y:0, w, h, lcdColorTable[COLOR_IDX(flags)]);
+      drawSolidFilledRect(x, y, thickness, h, flags);
+      drawSolidFilledRect(x+w-thickness, y, thickness, h, flags);
+      drawSolidFilledRect(x, y, w, thickness, flags);
+      drawSolidFilledRect(x, y+h-thickness, w, thickness, flags);
     }
 
-    void drawFilledRect(coord_t x, coord_t y, coord_t w, coord_t h, uint8_t pat, LcdFlags att);
+    void drawSolidFilledRect(coord_t x, coord_t y, coord_t w, coord_t h, LcdFlags flags = 0);
 
-    void invertRect(coord_t x, coord_t y, coord_t w, coord_t h, LcdFlags att);
+    void drawFilledRect(coord_t x, coord_t y, coord_t w, coord_t h, uint8_t pat = SOLID, LcdFlags flags = 0);
 
-    void drawCircle(int x0, int y0, int radius);
+    void invertRect(coord_t x, coord_t y, coord_t w, coord_t h, LcdFlags flags = 0);
 
-    void drawPie(int x0, int y0, int radius, int startAngle, int endAngle);
+    void drawCircle(coord_t x, coord_t y, coord_t radius, LcdFlags flags = 0);
+
+    void drawFilledCircle(coord_t x, coord_t y, coord_t radius, LcdFlags flags = 0);
+
+    void drawAnnulusSector(coord_t x, coord_t y, coord_t internalRadius, coord_t externalRadius, int startAngle, int endAngle, LcdFlags flags = 0);
 
     void drawBitmapPie(int x0, int y0, const uint16_t * img, int startAngle, int endAngle);
 
     void drawBitmapPatternPie(coord_t x0, coord_t y0, const uint8_t * img, LcdFlags flags, int startAngle, int endAngle);
 
-#if !defined(BOOT)
-    static BitmapBuffer * load(const char * filename);
+    static BitmapBuffer * loadBitmap(const char * filename);
 
     static BitmapBuffer * loadMask(const char * filename);
 
     static BitmapBuffer * loadMaskOnBackground(const char * filename, LcdFlags foreground, LcdFlags background);
-#endif
 
-    void drawMask(coord_t x, coord_t y, BitmapBuffer * mask, LcdFlags flags, coord_t offset=0, coord_t width=0);
+    void drawMask(coord_t x, coord_t y, const BitmapBuffer * mask, LcdFlags flags, coord_t offsetX = 0, coord_t width = 0);
+
+    void drawMask(coord_t x, coord_t y, const BitmapBuffer * mask, const BitmapBuffer * srcBitmap, coord_t offsetX = 0, coord_t offsetY = 0, coord_t width = 0, coord_t height = 0);
 
     void drawBitmapPattern(coord_t x, coord_t y, const uint8_t * bmp, LcdFlags flags, coord_t offset=0, coord_t width=0);
 
-    uint8_t drawCharWithoutCache(coord_t x, coord_t y, const uint8_t * font, const uint16_t * spec, int index, LcdFlags flags);
+    coord_t drawSizedText(coord_t x, coord_t y, const char * s, uint8_t len, LcdFlags flags=0);
 
-    uint8_t drawCharWithCache(coord_t x, coord_t y, const BitmapBuffer * font, const uint16_t * spec, int index, LcdFlags flags);
-
-    void drawTextMaxWidth(coord_t x, coord_t y, const char * s, LcdFlags flags, coord_t maxWidth)
+    coord_t drawText(coord_t x, coord_t y, const char * s, LcdFlags flags = 0)
     {
-      for (int col = LCD_COLS; col > 0; col--) {
-        if (getTextWidth(s, col, flags) <= maxWidth) {
-          drawSizedText(x, y, s, col, flags);
-          return;
-        }
-      }
+      return drawSizedText(x, y, s, 255, flags);
     }
 
-    void drawText(coord_t x, coord_t y, const char * s, LcdFlags flags)
+    coord_t drawTextAtIndex(coord_t x, coord_t y, const char * s, uint8_t idx, LcdFlags flags = 0)
     {
-      drawSizedText(x, y, s, 255, flags);
+      char length = *s++;
+      return drawSizedText(x, y, s+length*idx, length, flags);
     }
 
-    void drawSizedText(coord_t x, coord_t y, const char * s, uint8_t len, LcdFlags flags);
+    coord_t drawNumber(coord_t x, coord_t y, int32_t val, LcdFlags flags = 0, uint8_t len = 0, const char * prefix = nullptr, const char * suffix = nullptr);
 
     template<class T>
-    void drawBitmap(coord_t x, coord_t y, const T * bmp, coord_t srcx=0, coord_t srcy=0, coord_t w=0, coord_t h=0, float scale=0)
+    void drawBitmap(coord_t x, coord_t y, const T * bmp, coord_t srcx = 0, coord_t srcy = 0, coord_t srcw = 0, coord_t srch = 0, float scale = 0)
     {
-      if (!data || !bmp || x < 0 || x >= width || y < 0 || y >= height)
+      if (!data || !bmp)
         return;
 
-      coord_t srcw = bmp->getWidth();
-      coord_t srch = bmp->getHeight();
+      APPLY_OFFSET();
 
-      if (w == 0)
-        w = srcw;
-      if (h == 0)
-        h = srch;
-      if (srcx+w > srcw)
-        w = srcw - srcx;
-      if (srcy+h > srch)
-        h = srch - srcy;
+      if (x >= xmax || y >= ymax)
+        return;
+
+      coord_t bmpw = bmp->width();
+      coord_t bmph = bmp->height();
+
+      if (srcw == 0)
+        srcw = bmpw;
+      if (srch == 0)
+        srch = bmph;
+      if (srcx + srcw > bmpw)
+        srcw = bmpw - srcx;
+      if (srcy + srch > bmph)
+        srch = bmph - srcy;
 
       if (scale == 0) {
-        if (x + w > width) {
-          w = width - x;
+        if (x < xmin) {
+          srcw += x - xmin;
+          srcx -= x - xmin;
+          x = xmin;
         }
-        if (y + h > height) {
-          h = height - y;
+        if (y < ymin) {
+          srch += y - ymin;
+          srcy -= y - ymin;
+          y = ymin;
         }
-        if (bmp->getFormat() == BMP_ARGB4444) {
-          DMACopyAlphaBitmap(data, width, height, x, y, bmp->getData(), srcw, srch, srcx, srcy, w, h);
+        if (x + srcw > xmax) {
+          srcw = xmax - x;
         }
-        else {
-          DMACopyBitmap(data, width, height, x, y, bmp->getData(), srcw, srch, srcx, srcy, w, h);
+        if (y + srch > ymax) {
+          srch = ymax - y;
         }
       }
       else {
-        int scaledw = w * scale;
-        int scaledh = h * scale;
+        if (x < xmin) {
+          srcw += (x - xmin) / scale;
+          srcx -= (x - xmin) / scale;
+          x = xmin;
+        }
+        if (y < ymin) {
+          srch += (y - ymin) / scale;
+          srcy -= (y - ymin) / scale;
+          y = ymin;
+        }
+        if (x + srcw * scale > xmax) {
+          srcw = (xmax - x) / scale;
+        }
+        if (y + srch * scale > ymax) {
+          srch = (ymax - y) / scale;
+        }
+      }
 
-        if (x + scaledw > width)
-          scaledw = width - x;
-        if (y + scaledh > height)
-          scaledh = height - y;
+      if (srcw <= 0 || srch <= 0) {
+        return;
+      }
+
+      if (scale == 0) {
+        if (bmp->getFormat() == BMP_ARGB4444) {
+          DMACopyAlphaBitmap(data, _width, _height, x, y, bmp->getData(), bmpw, bmph, srcx, srcy, srcw, srch);
+        }
+        else {
+          DMACopyBitmap(data, _width, _height, x, y, bmp->getData(), bmpw, bmph, srcx, srcy, srcw, srch);
+        }
+      }
+      else {
+        int scaledw = srcw * scale;
+        int scaledh = srch * scale;
+
+        if (x + scaledw > _width)
+          scaledw = _width - x;
+        if (y + scaledh > _height)
+          scaledh = _height - y;
 
         for (int i = 0; i < scaledh; i++) {
-          display_t * p = getPixelPtr(x, y + i);
-          const display_t * qstart = bmp->getPixelPtr(srcx, srcy + int(i / scale));
+          pixel_t * p = getPixelPtr(x, y + i);
+          const pixel_t * qstart = bmp->getPixelPtr(srcx, srcy + int(i / scale));
           for (int j = 0; j < scaledw; j++) {
-            const display_t * q = qstart;
+            const pixel_t * q = qstart;
             MOVE_PIXEL_RIGHT(q, int(j / scale));
             if (bmp->getFormat() == BMP_ARGB4444) {
               ARGB_SPLIT(*q, a, r, g, b);
@@ -363,22 +495,28 @@ class BitmapBuffer: public BitmapBufferBase<uint16_t>
     template<class T>
     void drawScaledBitmap(const T * bitmap, coord_t x, coord_t y, coord_t w, coord_t h)
     {
-      float vscale = float(h) / bitmap->getHeight();
-      float hscale = float(w) / bitmap->getWidth();
-      float scale = vscale < hscale ? vscale : hscale;
+      if (bitmap) {
+        float vscale = float(h) / bitmap->height();
+        float hscale = float(w) / bitmap->width();
+        float scale = vscale < hscale ? vscale : hscale;
 
-      int xshift = (w - (bitmap->getWidth() * scale)) / 2;
-      int yshift = (h - (bitmap->getHeight() * scale)) / 2;
-      drawBitmap(x + xshift, y + yshift, bitmap, 0, 0, 0, 0, scale);
+        int xshift = (w - (bitmap->width() * scale)) / 2;
+        int yshift = (h - (bitmap->height() * scale)) / 2;
+        drawBitmap(x + xshift, y + yshift, bitmap, 0, 0, 0, 0, scale);
+      }
     }
 
+    BitmapBuffer * horizontalFlip() const;
+
+    BitmapBuffer * verticalFlip() const;
+
+    BitmapBuffer * invertMask() const;
+
   protected:
-#if !defined(BOOT)
     static BitmapBuffer * load_bmp(const char * filename);
     static BitmapBuffer * load_stb(const char * filename);
-#endif
+    uint8_t drawChar(coord_t x, coord_t y, const uint8_t * font, const uint16_t * spec, unsigned int index, LcdFlags flags);
 };
 
 extern BitmapBuffer * lcd;
 
-#endif // _BITMAP_BUFFER_H_
